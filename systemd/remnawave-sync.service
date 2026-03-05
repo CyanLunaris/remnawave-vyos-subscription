@@ -1,0 +1,10 @@
+[Unit]
+Description=Remnawave config sync (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/remnawave/sync.py --config /etc/remnawave/config.env
+StandardOutput=journal
+StandardError=journal

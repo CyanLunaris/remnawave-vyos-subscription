@@ -1,0 +1,9 @@
+[Unit]
+Description=Remnawave heartbeat check (oneshot)
+After=sing-box.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/remnawave/heartbeat.py --config /etc/remnawave/config.env
+StandardOutput=journal
+StandardError=journal
