@@ -21,7 +21,7 @@ class ConfigSettings:
 
 def generate_config(node: ParsedNode, settings: ConfigSettings) -> Dict[str, Any]:
     return {
-        "log": {"level": "warn", "output": "/var/log/remnawave/sing-box.log"},
+        "log": {"level": "warn", "output": "/var/log/remnaproxy/sing-box.log"},
         "dns": _build_dns(settings),
         "inbounds": [_build_tun_inbound(settings)],
         "outbounds": [_build_outbound(node), _build_direct_outbound(), _build_dns_outbound()],

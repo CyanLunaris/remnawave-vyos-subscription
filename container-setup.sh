@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-CONTAINER="${1:-remnawave}"
+CONTAINER="${1:-remnaproxy}"
 INSTALL_PATH="/usr/local/bin/remnaproxy-tui"
 
 cat > "$INSTALL_PATH" <<EOF

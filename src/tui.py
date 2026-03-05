@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-remnawave TUI — manage the proxy service from a terminal.
+remnaproxy TUI — manage the proxy service from a terminal.
 
 Usage:
-  python3 tui.py [--config /etc/remnawave/config.env]
+  python3 tui.py [--config /etc/remnaproxy/config.env]
 
 Requires: pip install textual
 """
@@ -59,9 +59,9 @@ class StatusPanel(Static):
         super().__init__(**kwargs)
         self.config_path = config_path
         env = load_env(config_path)
-        self._nodes_file = env.get("NODES_FILE", "/etc/remnawave/nodes.json")
-        self._state_file = env.get("STATE_FILE", "/etc/remnawave/state.json")
-        self._log_dir = env.get("LOG_DIR", "/var/log/remnawave")
+        self._nodes_file = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
+        self._state_file = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
+        self._log_dir = env.get("LOG_DIR", "/var/log/remnaproxy")
 
     def compose(self) -> ComposeResult:
         st = get_status(self._nodes_file, self._state_file)
@@ -94,8 +94,8 @@ class NodesScreen(Screen):
         super().__init__(**kwargs)
         self.config_path = config_path
         env = load_env(config_path)
-        self._nodes_file = env.get("NODES_FILE", "/etc/remnawave/nodes.json")
-        self._state_file = env.get("STATE_FILE", "/etc/remnawave/state.json")
+        self._nodes_file = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
+        self._state_file = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
         self._xray_config = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
         self._sm = StateManager(self._nodes_file, self._state_file)
 
@@ -205,7 +205,7 @@ class ConfigScreen(Screen):
 # ── Main App ──────────────────────────────────────────────────────────────────
 
 class RemnaApp(App):
-    """remnawave-sync TUI."""
+    """remnaproxy-sync TUI."""
 
     CSS = """
     StatusPanel { height: auto; padding: 1 2; }
@@ -242,13 +242,13 @@ class RemnaApp(App):
         self.notify("Sync triggered", severity="information")
 
 
-def main(config_path: str = "/etc/remnawave/config.env") -> None:
+def main(config_path: str = "/etc/remnaproxy/config.env") -> None:
     app = RemnaApp(config_path)
     app.run()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/etc/remnawave/config.env")
+    parser.add_argument("--config", default="/etc/remnaproxy/config.env")
     args = parser.parse_args()
     main(args.config)

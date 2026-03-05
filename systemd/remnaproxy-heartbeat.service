@@ -1,0 +1,9 @@
+[Unit]
+Description=Remnaproxy heartbeat check (oneshot)
+After=sing-box.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/remnaproxy/heartbeat.py --config /etc/remnaproxy/config.env
+StandardOutput=journal
+StandardError=journal

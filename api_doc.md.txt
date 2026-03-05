@@ -1,0 +1,323 @@
+Ок, копнул код/SDK и структуру API. Сразу скажу главный момент:
+**Happ (или любой Xray-клиент)** не ходит напрямую к `xray-core`. Он получает **subscription / config profile** из панели **Remnawave**, а панель уже генерирует JSON-конфиг для Xray.
+То есть цепочка такая:
+
+```
+Happ client
+   ↓
+Remnawave Panel API (subscription/config endpoints)
+   ↓
+Remnawave Node
+   ↓
+xray-core
+```
+
+Remnawave — это **панель управления прокси-нодами поверх Xray**. ([GitHub][1])
+
+Ниже разберём **конкретные API-эндпоинты**, через которые клиент получает конфиг.
+
+---
+
+# 1. Общая архитектура API Remnawave
+
+API панели используется для:
+
+* аутентификации
+* получения информации о пользователе
+* получения **config profile (subscription)**
+* получения **node configs**
+* статистики
+
+SDK и сторонние клиенты работают через HTTP API с JWT / API-token. ([PyPI][2])
+
+Типичная иерархия:
+
+```
+/api
+ ├── auth
+ ├── users
+ ├── nodes
+ ├── config-profiles
+ ├── subscription
+ ├── stats
+```
+
+---
+
+# 2. Endpoint получения конфигурации для клиента (самый важный)
+
+## GET /api/subscription/{token}
+
+Это главный endpoint.
+
+Клиенты типа **Happ / v2rayNG / Streisand** используют именно его.
+
+### Пример
+
+```
+GET https://panel.example.com/api/subscription/{token}
+```
+
+или иногда
+
+```
+GET https://panel.example.com/sub/{token}
+```
+
+### Что такое `{token}`
+
+Это **subscription token пользователя**.
+
+Он генерируется панелью и обычно выглядит так:
+
+```
+https://panel.example.com/sub/3f8d5e66-5a5b-4a5e-9f3b-23c9c2b4c1b2
+```
+
+---
+
+## Ответ
+
+Обычно возвращается **JSON или base64 subscription list**.
+
+Пример JSON:
+
+```json
+{
+  "profile": "default",
+  "configs": [
+    {
+      "type": "vless",
+      "server": "node1.example.com",
+      "port": 443,
+      "uuid": "9f4f8c7d-4a7a-4f8e-8f4a-7f4a8e7f4a8e",
+      "flow": "xtls-rprx-vision",
+      "network": "tcp",
+      "security": "reality"
+    }
+  ]
+}
+```
+
+или **VLESS URI list**
+
+```
+vless://uuid@host:443?security=reality&type=tcp...
+```
+
+Happ просто парсит их и генерирует локальный `xray.json`.
+
+---
+
+# 3. Endpoint получения config profile
+
+## GET /api/config-profiles
+
+Возвращает **список конфигурационных профилей**, из которых формируются подписки.
+
+Пример ответа:
+
+```json
+{
+  "profiles": [
+    {
+      "uuid": "profile-uuid",
+      "name": "Default",
+      "description": "Default config profile"
+    }
+  ]
+}
+```
+
+Эти профили определяют:
+
+* transport
+* tls
+* reality
+* routing
+* dns
+
+---
+
+# 4. Endpoint генерации конфигурации
+
+## GET /api/config-profiles/{uuid}/generate
+
+Возвращает **готовый xray config** для клиента.
+
+Пример:
+
+```
+GET /api/config-profiles/uuid/generate
+```
+
+Ответ:
+
+```json
+{
+  "xrayConfig": {
+    "log": {},
+    "inbounds": [],
+    "outbounds": [],
+    "routing": {}
+  }
+}
+```
+
+---
+
+# 5. Endpoint получения нод
+
+## GET /api/nodes
+
+Возвращает список Xray-нод.
+
+Пример:
+
+```json
+{
+  "nodes": [
+    {
+      "uuid": "node-uuid",
+      "name": "NL-1",
+      "host": "nl1.example.com",
+      "port": 443,
+      "protocol": "vless",
+      "transport": "tcp",
+      "tls": true
+    }
+  ]
+}
+```
+
+---
+
+# 6. Endpoint пользователя
+
+## GET /api/users/{uuid}
+
+Возвращает пользователя + лимиты.
+
+```json
+{
+  "username": "user1",
+  "uuid": "user-uuid",
+  "trafficLimit": 107374182400,
+  "expiresAt": "2026-06-01"
+}
+```
+
+---
+
+# 7. Endpoint статистики
+
+## GET /api/bandwidth-stats/users
+
+```json
+{
+  "upload": 1234567,
+  "download": 9876543
+}
+```
+
+---
+
+# 8. Как Happ реально получает конфиг
+
+Процесс:
+
+```
+1. пользователь добавляет subscription URL
+2. Happ делает GET
+
+GET /sub/{token}
+
+3. получает список URI
+
+vless://...
+vless://...
+
+4. генерирует локальный xray config
+5. запускает xray-core
+```
+
+---
+
+# 9. Как выглядит полный workflow
+
+```
+User
+  ↓
+Remnawave panel
+  ↓ generate config
+Remnawave node
+  ↓
+xray-core
+  ↓
+Internet
+```
+
+---
+
+# 10. Пример curl
+
+```bash
+curl https://panel.example.com/sub/3f8d5e66-5a5b-4a5e-9f3b
+```
+
+или
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+https://panel.example.com/api/config-profiles
+```
+
+---
+
+# 11. Интересная деталь Remnawave
+
+Remnawave генерирует **динамический Xray JSON**, а не хранит статический.
+
+Это позволяет:
+
+* менять routing
+* менять reality keys
+* менять nodes
+* менять transports
+
+без изменения клиента.
+
+---
+
+# 12. Где смотреть реальные endpoint'ы
+
+В коде панели:
+
+```
+remnawave/backend/src/modules
+```
+
+обычно:
+
+```
+auth.controller.ts
+users.controller.ts
+subscription.controller.ts
+config-profiles.controller.ts
+nodes.controller.ts
+```
+
+---
+
+# Если хочешь — могу разобрать ещё глубже (реально полезно):
+
+* **точный subscription endpoint код из Remnawave**
+* **как Happ парсит subscription**
+* **какой JSON превращается в xray config**
+* **как сделать свой сервер подписок (30 строк Go)**
+
+Там довольно красивый механизм.
+Почти как **mini control-plane для Xray** (¬‿¬)
+
+[1]: https://github.com/remnawave/panel?utm_source=chatgpt.com "remnawave/panel"
+[2]: https://pypi.org/project/remnawave-api/?utm_source=chatgpt.com "remnawave-api"

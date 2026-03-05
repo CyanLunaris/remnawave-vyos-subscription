@@ -1,15 +1,15 @@
 #!/bin/bash
-# Install remnawave-sync on VyOS
+# Install remnaproxy-sync on VyOS
 set -euo pipefail
 
-INSTALL_LIB="/usr/local/lib/remnawave"
-CONFIG_DIR="/etc/remnawave"
+INSTALL_LIB="/usr/local/lib/remnaproxy"
+CONFIG_DIR="/etc/remnaproxy"
 SING_BOX_DIR="/etc/sing-box"
 
-echo "=== Remnawave Sync Installer ==="
+echo "=== Remnaproxy Sync Installer ==="
 
 # 1. Create directories
-mkdir -p "$INSTALL_LIB" "$CONFIG_DIR" "$SING_BOX_DIR" /var/log/remnawave
+mkdir -p "$INSTALL_LIB" "$CONFIG_DIR" "$SING_BOX_DIR" /var/log/remnaproxy
 
 # 2. Copy Python source
 cp -r src/ "$INSTALL_LIB/"
@@ -29,10 +29,10 @@ fi
 
 # 4. Install systemd units
 cp systemd/sing-box.service /etc/systemd/system/
-cp systemd/remnawave-sync.service /etc/systemd/system/
-cp systemd/remnawave-sync.timer /etc/systemd/system/
-cp systemd/remnawave-heartbeat.service /etc/systemd/system/
-cp systemd/remnawave-heartbeat.timer /etc/systemd/system/
+cp systemd/remnaproxy-sync.service /etc/systemd/system/
+cp systemd/remnaproxy-sync.timer /etc/systemd/system/
+cp systemd/remnaproxy-heartbeat.service /etc/systemd/system/
+cp systemd/remnaproxy-heartbeat.timer /etc/systemd/system/
 
 systemctl daemon-reload
 
@@ -52,18 +52,18 @@ fi
 
 # 7. Enable and start services
 systemctl enable --now sing-box.service
-systemctl enable --now remnawave-sync.timer
-systemctl enable --now remnawave-heartbeat.timer
+systemctl enable --now remnaproxy-sync.timer
+systemctl enable --now remnaproxy-heartbeat.timer
 
 echo ""
 echo "=== Installation complete ==="
 echo "Status:"
-systemctl is-active sing-box.service remnawave-sync.timer remnawave-heartbeat.timer
+systemctl is-active sing-box.service remnaproxy-sync.timer remnaproxy-heartbeat.timer
 echo ""
 echo "Logs:"
 echo "  journalctl -u sing-box -f"
-echo "  tail -f /var/log/remnawave/sync.log"
-echo "  tail -f /var/log/remnawave/heartbeat.log"
+echo "  tail -f /var/log/remnaproxy/sync.log"
+echo "  tail -f /var/log/remnaproxy/heartbeat.log"
 echo ""
 echo "Manual sync:      python3 $INSTALL_LIB/sync.py"
 echo "Manual heartbeat: python3 $INSTALL_LIB/heartbeat.py"

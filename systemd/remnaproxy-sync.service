@@ -1,0 +1,10 @@
+[Unit]
+Description=Remnaproxy config sync (oneshot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/remnaproxy/sync.py --config /etc/remnaproxy/config.env
+StandardOutput=journal
+StandardError=journal

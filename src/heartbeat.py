@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-remnawave-heartbeat — check connectivity and rotate nodes on failure.
+remnaproxy-heartbeat — check connectivity and rotate nodes on failure.
 
 Usage:
-  python3 heartbeat.py [--config /etc/remnawave/config.env]
+  python3 heartbeat.py [--config /etc/remnaproxy/config.env]
 """
 from __future__ import annotations
 import argparse
@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.config_generator import ConfigSettings, generate_config
 from src.state_manager import StateManager
 
-log = logging.getLogger("remnawave-heartbeat")
+log = logging.getLogger("remnaproxy-heartbeat")
 
 
 def check_connectivity(host: str, timeout: int = 5) -> bool:
@@ -39,7 +39,7 @@ def run_heartbeat_check(
     fail_threshold: int,
     heartbeat_host: str,
     timeout: int,
-    config_path: str = "/etc/remnawave/config.env",
+    config_path: str = "/etc/remnaproxy/config.env",
 ) -> bool:
     """Run one heartbeat check. Returns True if node was switched."""
     if check_connectivity(heartbeat_host, timeout):
@@ -64,7 +64,7 @@ def run_heartbeat_check(
     return False
 
 
-def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnawave/config.env") -> None:
+def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config.env") -> None:
     """Regenerate config for new current node and reload sing-box."""
     from src.sync import load_env
     env = load_env(config_path)
@@ -102,12 +102,12 @@ def _reload_sing_box() -> None:
         log.error("sing-box reload failed")
 
 
-def main(config_path: str = "/etc/remnawave/config.env") -> int:
+def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     from src.sync import load_env
     env = load_env(config_path)
     env = {**os.environ, **env}
 
-    log_dir = env.get("LOG_DIR", "/var/log/remnawave")
+    log_dir = env.get("LOG_DIR", "/var/log/remnaproxy")
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -119,8 +119,8 @@ def main(config_path: str = "/etc/remnawave/config.env") -> int:
     )
 
     sm = StateManager(
-        env.get("NODES_FILE", "/etc/remnawave/nodes.json"),
-        env.get("STATE_FILE", "/etc/remnawave/state.json"),
+        env.get("NODES_FILE", "/etc/remnaproxy/nodes.json"),
+        env.get("STATE_FILE", "/etc/remnaproxy/state.json"),
     )
 
     run_heartbeat_check(
@@ -135,6 +135,6 @@ def main(config_path: str = "/etc/remnawave/config.env") -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/etc/remnawave/config.env")
+    parser.add_argument("--config", default="/etc/remnaproxy/config.env")
     args = parser.parse_args()
     sys.exit(main(args.config))
