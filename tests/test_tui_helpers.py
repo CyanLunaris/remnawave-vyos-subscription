@@ -1,4 +1,4 @@
-import json
+import shutil
 import tempfile
 import pytest
 from pathlib import Path
@@ -27,6 +27,9 @@ class TestGetStatus:
         self.nodes_file = self.tmp / "nodes.json"
         self.state_file = self.tmp / "state.json"
 
+    def teardown_method(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
     def _make_sm(self, nodes, index=0):
         sm = StateManager(str(self.nodes_file), str(self.state_file))
         sm.save_nodes(nodes)
@@ -34,12 +37,12 @@ class TestGetStatus:
         return sm
 
     def test_current_node_name(self):
-        sm = self._make_sm([make_node("NL-1"), make_node("DE-1")], index=0)
+        self._make_sm([make_node("NL-1"), make_node("DE-1")], index=0)
         status = get_status(str(self.nodes_file), str(self.state_file))
         assert status["current_node_name"] == "NL-1"
 
     def test_current_node_index(self):
-        sm = self._make_sm([make_node("A"), make_node("B")], index=1)
+        self._make_sm([make_node("A"), make_node("B")], index=1)
         status = get_status(str(self.nodes_file), str(self.state_file))
         assert status["current_index"] == 1
 
@@ -77,6 +80,9 @@ class TestReadWriteConfig:
             "# comment line\n"
         )
 
+    def teardown_method(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
     def test_read_config_returns_dict(self):
         cfg = read_config(str(self.config))
         assert cfg["SUBSCRIPTION_URL"] == "https://example.com/sub/TOKEN"
@@ -110,6 +116,9 @@ class TestReadWriteConfig:
 class TestGetLastLogLine:
     def setup_method(self):
         self.tmp = Path(tempfile.mkdtemp())
+
+    def teardown_method(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_returns_last_line(self):
         log = self.tmp / "sync.log"

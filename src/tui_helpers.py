@@ -5,6 +5,7 @@ These are tested independently from the UI.
 from __future__ import annotations
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -31,7 +32,7 @@ def read_config(config_path: str) -> Dict[str, str]:
     """Read config.env and return key→value dict (skips comments and blanks)."""
     result: Dict[str, str] = {}
     try:
-        for line in Path(config_path).read_text().splitlines():
+        for line in Path(config_path).read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
@@ -43,11 +44,15 @@ def read_config(config_path: str) -> Dict[str, str]:
 
 
 def write_config(config_path: str, updates: Dict[str, str]) -> None:
-    """Update specific keys in config.env, preserving all other lines."""
-    path = Path(config_path)
-    lines = path.read_text().splitlines(keepends=True) if path.exists() else []
+    """Update specific keys in config.env, preserving all other lines.
 
-    updated_keys = set()
+    Uses an atomic write (temp file + os.replace) to avoid config corruption
+    if the process is interrupted mid-write.
+    """
+    path = Path(config_path)
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True) if path.exists() else []
+
+    updated_keys: set = set()
     new_lines = []
     for line in lines:
         stripped = line.strip()
@@ -66,14 +71,23 @@ def write_config(config_path: str, updates: Dict[str, str]) -> None:
         if key not in updated_keys:
             new_lines.append(f"{key}={value}\n")
 
-    path.write_text("".join(new_lines))
+    content = "".join(new_lines)
+    # Atomic write: write to temp file in same directory, then rename
+    fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(tmp_path, str(path))
+    except Exception:
+        os.unlink(tmp_path)
+        raise
 
 
 def get_last_log_line(log_path: str) -> Optional[str]:
     """Return the last non-empty line of a log file, or None if unavailable."""
     try:
-        text = Path(log_path).read_text()
-        lines = [l for l in text.splitlines() if l.strip()]
+        text = Path(log_path).read_text(encoding="utf-8")
+        lines = [line for line in text.splitlines() if line.strip()]
         return lines[-1] if lines else None
     except (FileNotFoundError, OSError):
         return None
@@ -97,7 +111,7 @@ def reload_sing_box() -> bool:
             capture_output=True,
         )
         return result.returncode == 0
-    # Container mode: SIGHUP to sing-box process
+    # Container / unknown mode: SIGHUP to sing-box process
     result = subprocess.run(
         ["/usr/bin/pkill", "-HUP", "sing-box"],
         capture_output=True,
