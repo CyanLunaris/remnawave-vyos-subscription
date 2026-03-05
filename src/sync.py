@@ -145,14 +145,11 @@ def _hash_file(path: str) -> str:
 
 
 def _reload_sing_box() -> None:
-    result = subprocess.run(
-        ["/bin/systemctl", "reload-or-restart", "sing-box"],
-        capture_output=True, text=True,
-    )
-    if result.returncode == 0:
+    from src.tui_helpers import reload_sing_box
+    if reload_sing_box():
         log.info("sing-box reloaded")
     else:
-        log.error("sing-box reload failed: %s", result.stderr)
+        log.error("sing-box reload failed")
 
 
 if __name__ == "__main__":
