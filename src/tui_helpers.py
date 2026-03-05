@@ -113,7 +113,7 @@ def reload_sing_box() -> bool:
         return result.returncode == 0
     # Container / unknown mode: SIGHUP to sing-box process
     result = subprocess.run(
-        ["/usr/bin/pkill", "-HUP", "sing-box"],
+        ["pkill", "-HUP", "sing-box"],
         capture_output=True,
     )
     return result.returncode == 0

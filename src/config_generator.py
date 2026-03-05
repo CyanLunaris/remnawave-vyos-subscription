@@ -156,8 +156,18 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
 def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
     return {
         "servers": [
-            {"tag": "remote", "address": f"https://{s.dns_server}/dns-query", "detour": "proxy"},
-            {"tag": "local", "address": "1.1.1.1", "detour": "direct"},
+            {
+                "tag": "remote",
+                "type": "https",
+                "server": s.dns_server,
+                "detour": "proxy",
+            },
+            {
+                "tag": "local",
+                "type": "udp",
+                "server": "1.1.1.1",
+                "detour": "direct",
+            },
         ],
         "rules": [
             {"geosite": s.geo_direct_site, "server": "local"},

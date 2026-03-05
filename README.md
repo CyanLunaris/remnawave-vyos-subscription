@@ -26,11 +26,17 @@ SUBSCRIPTION_URL=https://panel.example.com/sub/TOKEN
 
 ```
 set container name remnaproxy image 'ghcr.io/CyanLunaris/remnawave-vyos-subscription:latest'
-set container name remnaproxy cap-add 'net-admin'
-set container name remnaproxy device tun source '/dev/net/tun' destination '/dev/net/tun'
-set container name remnaproxy volume config source '/config/remnaproxy' destination '/etc/remnaproxy'
-set container name remnaproxy volume singbox source '/config/sing-box' destination '/etc/sing-box'
-set container name remnaproxy volume logs source '/config/remnaproxy/logs' destination '/var/log/remnaproxy'
+set container name remnaproxy capability net-admin
+set container name remnaproxy allow-host-networks
+set container name remnaproxy device tun source '/dev/net/tun'
+set container name remnaproxy device tun destination '/dev/net/tun'
+set container name remnaproxy volume config source '/config/remnaproxy'
+set container name remnaproxy volume config destination '/etc/remnaproxy'
+set container name remnaproxy volume singbox source '/config/sing-box'
+set container name remnaproxy volume singbox destination '/etc/sing-box'
+set container name remnaproxy volume logs source '/config/remnaproxy/logs'
+set container name remnaproxy volume logs destination '/var/log/remnaproxy'
+
 commit ; save
 ```
 
