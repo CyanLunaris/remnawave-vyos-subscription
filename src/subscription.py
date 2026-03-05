@@ -22,12 +22,20 @@ TIMEOUT_SECONDS = 15
 # Use sing-box UA so Remnawave returns JSON format and recognises us as a valid client
 USER_AGENT = "sfa/1.0"
 
+# Some Remnawave panels require device fingerprint headers to return real nodes
+_DEVICE_HEADERS = {
+    "x-hwid": "remnaproxy-vyos",
+    "x-device-os": "iOS",
+    "x-ver-os": "18.3",
+    "x-device-model": "iPhone 14 Pro Max",
+}
+
 _PROXY_TYPES = {"vless", "vmess", "trojan"}
 
 
 def fetch_subscription(url: str) -> List[ParsedNode]:
     """Fetch subscription URL and return list of parsed nodes. Raises ConnectionError on failure."""
-    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **_DEVICE_HEADERS})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT_SECONDS) as resp:
             if resp.status != 200:
