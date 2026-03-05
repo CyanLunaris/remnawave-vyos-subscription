@@ -35,6 +35,7 @@ from src.tui_helpers import (
 )
 from src.state_manager import StateManager
 from src.config_generator import ConfigSettings, generate_config
+from src.sync import load_env
 import json
 
 
@@ -57,7 +58,6 @@ class StatusPanel(Static):
     def __init__(self, config_path: str, **kwargs):
         super().__init__(**kwargs)
         self.config_path = config_path
-        from src.sync import load_env
         env = load_env(config_path)
         self._nodes_file = env.get("NODES_FILE", "/etc/remnawave/nodes.json")
         self._state_file = env.get("STATE_FILE", "/etc/remnawave/state.json")
@@ -68,14 +68,18 @@ class StatusPanel(Static):
         sync_last = get_last_log_line(f"{self._log_dir}/sync.log") or "—"
         hb_last = get_last_log_line(f"{self._log_dir}/heartbeat.log") or "—"
         fail = st["fail_count"]
+        fail_class = "value-err" if fail >= 2 else ("value-warn" if fail > 0 else "value")
 
         yield Label(f"Current node : {st['current_node_name']}  "
-                    f"({st['current_node_host']}:{st['current_node_port']})")
-        yield Label(f"Protocol     : {st['current_node_protocol']}")
-        yield Label(f"Node index   : {st['current_index'] + 1} / {st['node_count']}")
-        yield Label(f"Fail count   : {fail}")
-        yield Label(f"Last sync    : {sync_last[-80:]}")
-        yield Label(f"Last hb      : {hb_last[-80:]}")
+                    f"({st['current_node_host']}:{st['current_node_port']})",
+                    classes="status-row value")
+        yield Label(f"Protocol     : {st['current_node_protocol']}",
+                    classes="status-row value")
+        yield Label(f"Node index   : {st['current_index'] + 1} / {st['node_count']}",
+                    classes="status-row value")
+        yield Label(f"Fail count   : {fail}", classes=f"status-row {fail_class}")
+        yield Label(f"Last sync    : {sync_last[-80:]}", classes="status-row value")
+        yield Label(f"Last hb      : {hb_last[-80:]}", classes="status-row value")
 
 
 # ── Nodes Screen ──────────────────────────────────────────────────────────────
@@ -89,7 +93,6 @@ class NodesScreen(Screen):
     def __init__(self, config_path: str, **kwargs):
         super().__init__(**kwargs)
         self.config_path = config_path
-        from src.sync import load_env
         env = load_env(config_path)
         self._nodes_file = env.get("NODES_FILE", "/etc/remnawave/nodes.json")
         self._state_file = env.get("STATE_FILE", "/etc/remnawave/state.json")
@@ -118,13 +121,12 @@ class NodesScreen(Screen):
         table = self.query_one(DataTable)
         if table.cursor_row is None:
             return
-        idx = int(table.get_row_at(table.cursor_row)[0]) - 1
+        idx = int(table.cursor_row_key.value)
         self._sm.set_current_index(idx)
 
         # Regenerate config
         node = self._sm.get_current_node()
         if node:
-            from src.sync import load_env
             env = load_env(self.config_path)
             settings = ConfigSettings(
                 tun_interface=env.get("TUN_INTERFACE", "tun0"),
