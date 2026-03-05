@@ -146,7 +146,7 @@ def _hash_file(path: str) -> str:
 
 def _reload_sing_box() -> None:
     result = subprocess.run(
-        ["systemctl", "reload-or-restart", "sing-box"],
+        ["/bin/systemctl", "reload-or-restart", "sing-box"],
         capture_output=True, text=True,
     )
     if result.returncode == 0:

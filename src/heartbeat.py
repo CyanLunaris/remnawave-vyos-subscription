@@ -39,6 +39,7 @@ def run_heartbeat_check(
     fail_threshold: int,
     heartbeat_host: str,
     timeout: int,
+    config_path: str = "/etc/remnawave/config.env",
 ) -> bool:
     """Run one heartbeat check. Returns True if node was switched."""
     if check_connectivity(heartbeat_host, timeout):
@@ -57,16 +58,16 @@ def run_heartbeat_check(
         node = sm.get_current_node()
         node_name = node.name if node else "unknown"
         log.warning("Switching node %d → %d (%s)", old_idx, new_idx, node_name)
-        _apply_new_node(sm)
+        _apply_new_node(sm, config_path)
         return True
 
     return False
 
 
-def _apply_new_node(sm: StateManager) -> None:
+def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnawave/config.env") -> None:
     """Regenerate config for new current node and reload sing-box."""
     from src.sync import load_env
-    env = load_env("/etc/remnawave/config.env")
+    env = load_env(config_path)
     env = {**os.environ, **env}
 
     node = sm.get_current_node()
@@ -95,7 +96,7 @@ def _apply_new_node(sm: StateManager) -> None:
 
 def _reload_sing_box() -> None:
     result = subprocess.run(
-        ["systemctl", "reload-or-restart", "sing-box"],
+        ["/bin/systemctl", "reload-or-restart", "sing-box"],
         capture_output=True, text=True,
     )
     if result.returncode == 0:
@@ -130,6 +131,7 @@ def main(config_path: str = "/etc/remnawave/config.env") -> int:
         fail_threshold=int(env.get("HEARTBEAT_FAIL_THRESHOLD", "2")),
         heartbeat_host=env.get("HEARTBEAT_HOST", "cp.cloudflare.com"),
         timeout=int(env.get("HEARTBEAT_TIMEOUT", "5")),
+        config_path=config_path,
     )
     return 0
 

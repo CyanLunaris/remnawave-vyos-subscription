@@ -27,7 +27,9 @@ class StateManager:
         try:
             data = json.loads(self._nodes_file.read_text())
             return [ParsedNode(**d) for d in data]
-        except Exception:
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).error("Failed to load nodes from %s: %s", self._nodes_file, exc)
             return []
 
     # ── State ─────────────────────────────────────────────────────────────────

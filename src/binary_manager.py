@@ -110,13 +110,13 @@ def _download_sing_box(url: str, dest: str) -> None:
             # Find the sing-box binary inside the archive
             for member in tar.getmembers():
                 if member.name.endswith("/sing-box") or member.name == "sing-box":
-                    member.name = "sing-box"
-                    tar.extract(member, tmp)
+                    file_obj = tar.extractfile(member)
+                    if file_obj is None:
+                        raise RuntimeError("sing-box member is not a regular file")
+                    Path(dest).write_bytes(file_obj.read())
                     break
             else:
                 raise RuntimeError("sing-box binary not found in archive")
-        extracted = os.path.join(tmp, "sing-box")
-        shutil.copy2(extracted, dest)
     # Make executable
     current = os.stat(dest).st_mode
     os.chmod(dest, current | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)

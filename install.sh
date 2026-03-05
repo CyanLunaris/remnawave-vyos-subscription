@@ -21,6 +21,7 @@ touch "$INSTALL_LIB/src/__init__.py"
 # 3. Install config if not present
 if [ ! -f "$CONFIG_DIR/config.env" ]; then
     cp config.env.example "$CONFIG_DIR/config.env"
+    chmod 600 "$CONFIG_DIR/config.env"
     echo ""
     echo ">>> IMPORTANT: Edit $CONFIG_DIR/config.env and set SUBSCRIPTION_URL <<<"
     echo ""
