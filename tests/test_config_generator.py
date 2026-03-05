@@ -55,6 +55,7 @@ class TestConfigStructure:
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tags = [o["tag"] for o in cfg["outbounds"]]
         assert "direct" in tags
+        assert "dns-out" not in tags  # removed in sing-box 1.13+
 
     def test_proxy_outbound_is_first(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -115,6 +116,13 @@ class TestTrojanOutbound:
 
 
 class TestRouting:
+    def test_dns_rule_uses_hijack_action(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        rules = cfg["route"]["rules"]
+        dns_rule = next(r for r in rules if r.get("protocol") == "dns")
+        assert dns_rule["action"] == "hijack-dns"
+        assert "outbound" not in dns_rule
+
     def test_private_ip_goes_direct(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         rules = cfg["route"]["rules"]

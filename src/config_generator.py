@@ -24,7 +24,7 @@ def generate_config(node: ParsedNode, settings: ConfigSettings) -> Dict[str, Any
         "log": {"level": "warn", "output": "/var/log/remnaproxy/sing-box.log"},
         "dns": _build_dns(settings),
         "inbounds": [_build_tun_inbound(settings)],
-        "outbounds": [_build_outbound(node), _build_direct_outbound(), _build_dns_outbound()],
+        "outbounds": [_build_outbound(node), _build_direct_outbound()],
         "route": _build_route(settings),
     }
 
@@ -113,10 +113,6 @@ def _build_direct_outbound() -> Dict[str, Any]:
     return {"type": "direct", "tag": "direct"}
 
 
-def _build_dns_outbound() -> Dict[str, Any]:
-    return {"type": "dns", "tag": "dns-out"}
-
-
 # ── TLS / Transport helpers ───────────────────────────────────────────────────
 
 def _build_tls(node: ParsedNode) -> Dict[str, Any]:
@@ -180,7 +176,7 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
 
 def _build_route(s: ConfigSettings) -> Dict[str, Any]:
     rules: List[Dict[str, Any]] = [
-        {"protocol": "dns", "outbound": "dns-out"},
+        {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]
     if s.geo_direct_ip:
