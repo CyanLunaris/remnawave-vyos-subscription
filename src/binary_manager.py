@@ -1,29 +1,28 @@
 """
-Download and verify sing-box binary and geo data files.
+Download and verify sing-box binary and geo rule-set data files.
 
 sing-box releases: https://github.com/SagerNet/sing-box/releases
-geoip.db:          https://github.com/SagerNet/sing-geoip/releases
-geosite.db:        https://github.com/SagerNet/sing-geosite/releases
+geoip rule-sets:   https://github.com/SagerNet/sing-geoip/tree/rule-set
+geosite rule-sets: https://github.com/SagerNet/sing-geosite/tree/rule-set
 """
 from __future__ import annotations
-import hashlib
 import json
 import logging
 import os
 import platform
-import shutil
 import stat
 import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path
+from typing import List
 
 log = logging.getLogger(__name__)
 
 GITHUB_API = "https://api.github.com"
 SING_BOX_REPO = "SagerNet/sing-box"
-GEOIP_REPO = "SagerNet/sing-geoip"
-GEOSITE_REPO = "SagerNet/sing-geosite"
+GEOIP_RULE_SET_BASE = "https://raw.githubusercontent.com/SagerNet/sing-geoip/rule-set"
+GEOSITE_RULE_SET_BASE = "https://raw.githubusercontent.com/SagerNet/sing-geosite/rule-set"
 
 
 def ensure_sing_box(install_path: str) -> str:
@@ -40,19 +39,23 @@ def ensure_sing_box(install_path: str) -> str:
     return install_path
 
 
-def ensure_geo_files(geoip_path: str, geosite_path: str) -> None:
-    """Ensure geoip.db and geosite.db exist. Download if missing."""
-    if not Path(geoip_path).exists():
-        log.info("Downloading geoip.db...")
-        url = _get_latest_asset_url(GEOIP_REPO, "geoip.db")
-        _download_file(url, geoip_path)
-        log.info("geoip.db saved to %s", geoip_path)
+def ensure_rule_sets(rule_set_dir: str, ip_codes: List[str], site_codes: List[str]) -> None:
+    """Ensure rule-set .srs files exist in rule_set_dir. Download if missing."""
+    for code in ip_codes:
+        path = Path(rule_set_dir) / f"geoip-{code}.srs"
+        if not path.exists():
+            log.info("Downloading geoip-%s.srs...", code)
+            url = f"{GEOIP_RULE_SET_BASE}/geoip-{code}.srs"
+            _download_file(url, str(path))
+            log.info("geoip-%s.srs saved to %s", code, path)
 
-    if not Path(geosite_path).exists():
-        log.info("Downloading geosite.db...")
-        url = _get_latest_asset_url(GEOSITE_REPO, "geosite.db")
-        _download_file(url, geosite_path)
-        log.info("geosite.db saved to %s", geosite_path)
+    for code in site_codes:
+        path = Path(rule_set_dir) / f"geosite-{code}.srs"
+        if not path.exists():
+            log.info("Downloading geosite-%s.srs...", code)
+            url = f"{GEOSITE_RULE_SET_BASE}/geosite-{code}.srs"
+            _download_file(url, str(path))
+            log.info("geosite-%s.srs saved to %s", code, path)
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -77,14 +80,6 @@ def _get_sing_box_download_url() -> str:
         if asset["name"] == asset_name:
             return asset["browser_download_url"]
     raise RuntimeError(f"Could not find asset {asset_name} in sing-box release")
-
-
-def _get_latest_asset_url(repo: str, filename: str) -> str:
-    release = _fetch_latest_release(repo)
-    for asset in release["assets"]:
-        if asset["name"] == filename:
-            return asset["browser_download_url"]
-    raise RuntimeError(f"Could not find {filename} in {repo} release")
 
 
 def _fetch_latest_release(repo: str) -> dict:

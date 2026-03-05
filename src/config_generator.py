@@ -1,5 +1,7 @@
 """
 Generate sing-box config.json from a ParsedNode.
+
+Targets sing-box 1.12+ (rule-set API; geoip/geosite removed in 1.12.0).
 """
 from __future__ import annotations
 from dataclasses import dataclass, field
@@ -14,8 +16,7 @@ class ConfigSettings:
     tun_address: str = "172.19.0.1/30"
     geo_direct_ip: List[str] = field(default_factory=lambda: ["private", "ru"])
     geo_direct_site: List[str] = field(default_factory=lambda: ["ru"])
-    geoip_path: str = "/etc/sing-box/geoip.db"
-    geosite_path: str = "/etc/sing-box/geosite.db"
+    rule_set_dir: str = "/etc/sing-box"
     dns_server: str = "8.8.8.8"
 
 
@@ -150,6 +151,13 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
 # ── DNS ───────────────────────────────────────────────────────────────────────
 
 def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
+    rules: List[Dict[str, Any]] = []
+    if s.geo_direct_site:
+        rules.append({
+            "rule_set": [f"geosite-{code}" for code in s.geo_direct_site],
+            "action": "route",
+            "server": "local",
+        })
     return {
         "servers": [
             {
@@ -165,9 +173,7 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
                 "detour": "direct",
             },
         ],
-        "rules": [
-            {"geosite": s.geo_direct_site, "server": "local"},
-        ],
+        "rules": rules,
         "final": "remote",
     }
 
@@ -179,16 +185,33 @@ def _build_route(s: ConfigSettings) -> Dict[str, Any]:
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]
-    if s.geo_direct_ip:
-        non_private = [g for g in s.geo_direct_ip if g != "private"]
-        if non_private:
-            rules.append({"geoip": non_private, "outbound": "direct"})
+    non_private = [g for g in s.geo_direct_ip if g != "private"]
+    if non_private:
+        rules.append({"rule_set": [f"geoip-{code}" for code in non_private], "outbound": "direct"})
     if s.geo_direct_site:
-        rules.append({"geosite": s.geo_direct_site, "outbound": "direct"})
+        rules.append({"rule_set": [f"geosite-{code}" for code in s.geo_direct_site], "outbound": "direct"})
 
-    return {
+    rule_set: List[Dict[str, Any]] = []
+    for code in non_private:
+        rule_set.append({
+            "tag": f"geoip-{code}",
+            "type": "local",
+            "format": "binary",
+            "path": f"{s.rule_set_dir}/geoip-{code}.srs",
+        })
+    for code in s.geo_direct_site:
+        rule_set.append({
+            "tag": f"geosite-{code}",
+            "type": "local",
+            "format": "binary",
+            "path": f"{s.rule_set_dir}/geosite-{code}.srs",
+        })
+
+    route: Dict[str, Any] = {
         "rules": rules,
         "final": "proxy",
-        "geoip": {"path": s.geoip_path},
-        "geosite": {"path": s.geosite_path},
+        "default_domain_resolver": "local",
     }
+    if rule_set:
+        route["rule_set"] = rule_set
+    return route
