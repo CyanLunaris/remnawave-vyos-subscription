@@ -138,3 +138,27 @@ class TestRouting:
     def test_geoip_db_path(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         assert cfg["route"]["geoip"]["path"] == "/etc/sing-box/geoip.db"
+
+
+class TestDns:
+    def test_remote_server_uses_type_field(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        remote = next(s for s in cfg["dns"]["servers"] if s["tag"] == "remote")
+        assert remote["type"] == "https"
+        assert "address" not in remote
+
+    def test_remote_server_field(self):
+        s = ConfigSettings(dns_server="8.8.8.8")
+        cfg = generate_config(make_vless_reality(), s)
+        remote = next(srv for srv in cfg["dns"]["servers"] if srv["tag"] == "remote")
+        assert remote["server"] == "8.8.8.8"
+
+    def test_local_server_uses_udp_type(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        local = next(s for s in cfg["dns"]["servers"] if s["tag"] == "local")
+        assert local["type"] == "udp"
+        assert "address" not in local
+
+    def test_dns_final_is_remote(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert cfg["dns"]["final"] == "remote"
