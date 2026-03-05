@@ -14,6 +14,7 @@ import base64
 import json
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from .uri_parser import ParsedNode, parse_uri
@@ -22,9 +23,20 @@ TIMEOUT_SECONDS = 15
 # Use sing-box UA so Remnawave returns JSON format and recognises us as a valid client
 USER_AGENT = "sfa/1.0"
 
+def _get_machine_id() -> str:
+    """Return a stable unique machine identifier from /etc/machine-id."""
+    try:
+        mid = Path("/etc/machine-id").read_text().strip()
+        if mid:
+            return mid
+    except OSError:
+        pass
+    return "remnaproxy-vyos"
+
+
 # Some Remnawave panels require device fingerprint headers to return real nodes
 _DEVICE_HEADERS = {
-    "x-hwid": "remnaproxy-vyos",
+    "x-hwid": _get_machine_id(),
     "x-device-os": "iOS",
     "x-ver-os": "18.3",
     "x-device-model": "iPhone 14 Pro Max",
