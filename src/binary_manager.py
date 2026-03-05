@@ -96,7 +96,7 @@ def _fetch_latest_release(repo: str) -> dict:
 
 def _download_file(url: str, dest: str) -> None:
     Path(dest).parent.mkdir(parents=True, exist_ok=True)
-    req = urllib.request.Request(url, headers={"User-Agent": "remnawave-sync/1.0"})
+    req = urllib.request.Request(url, headers={"User-Agent": "remnaproxy-sync/1.0"})
     with urllib.request.urlopen(req, timeout=120) as resp:
         Path(dest).write_bytes(resp.read())
 

@@ -1,0 +1,11 @@
+[Unit]
+Description=Remnaproxy heartbeat timer
+Requires=remnaproxy-heartbeat.service
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=30s
+Unit=remnaproxy-heartbeat.service
+
+[Install]
+WantedBy=timers.target

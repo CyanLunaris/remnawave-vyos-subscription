@@ -14,7 +14,7 @@
 
 ### Вариант A — Docker-контейнер на VyOS
 
-**1. Настроить `config.env`** (положить в `/config/remnawave/config.env`):
+**1. Настроить `config.env`** (положить в `/config/remnaproxy/config.env`):
 
 ```bash
 SUBSCRIPTION_URL=https://panel.example.com/sub/TOKEN
@@ -25,12 +25,12 @@ SUBSCRIPTION_URL=https://panel.example.com/sub/TOKEN
 **2. Запустить контейнер:**
 
 ```
-set container name remnawave image 'ghcr.io/CyanLunaris/remnawave-vyos-subscription:latest'
-set container name remnawave cap-add 'net-admin'
-set container name remnawave device tun source '/dev/net/tun' destination '/dev/net/tun'
-set container name remnawave volume config source '/config/remnawave' destination '/etc/remnawave'
-set container name remnawave volume singbox source '/config/sing-box' destination '/etc/sing-box'
-set container name remnawave volume logs source '/config/remnawave/logs' destination '/var/log/remnawave'
+set container name remnaproxy image 'ghcr.io/CyanLunaris/remnawave-vyos-subscription:latest'
+set container name remnaproxy cap-add 'net-admin'
+set container name remnaproxy device tun source '/dev/net/tun' destination '/dev/net/tun'
+set container name remnaproxy volume config source '/config/remnaproxy' destination '/etc/remnaproxy'
+set container name remnaproxy volume singbox source '/config/sing-box' destination '/etc/sing-box'
+set container name remnaproxy volume logs source '/config/remnaproxy/logs' destination '/var/log/remnaproxy'
 commit ; save
 ```
 
@@ -54,7 +54,7 @@ remnaproxy-tui
 sudo bash install.sh
 ```
 
-Скрипт установит файлы в `/usr/local/lib/remnawave/`, создаст systemd-юниты и запустит первый синк.
+Скрипт установит файлы в `/usr/local/lib/remnaproxy/`, создаст systemd-юниты и запустит первый синк.
 
 ---
 

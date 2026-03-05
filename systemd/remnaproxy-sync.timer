@@ -1,0 +1,11 @@
+[Unit]
+Description=Remnaproxy config sync timer
+Requires=remnaproxy-sync.service
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=10min
+Unit=remnaproxy-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -1,4 +1,4 @@
-# remnawave-sync — VyOS container image
+# remnaproxy-sync — VyOS container image
 FROM debian:bookworm-slim
 
 # Install runtime deps
@@ -25,10 +25,10 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app
 
 # Default config location (override via volume)
-ENV REMNAWAVE_CONFIG=/etc/remnawave/config.env
+ENV REMNAPROXY_CONFIG=/etc/remnaproxy/config.env
 
 # Directories that should be volume-mounted
-VOLUME ["/etc/remnawave", "/etc/sing-box", "/var/log/remnawave"]
+VOLUME ["/etc/remnaproxy", "/etc/sing-box", "/var/log/remnaproxy"]
 
 ENTRYPOINT ["python3", "/app/src/daemon.py"]
-CMD ["--config", "/etc/remnawave/config.env"]
+CMD ["--config", "/etc/remnaproxy/config.env"]

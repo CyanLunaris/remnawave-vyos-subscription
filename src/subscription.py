@@ -14,7 +14,7 @@ from typing import List
 from .uri_parser import ParsedNode, parse_uri
 
 TIMEOUT_SECONDS = 15
-USER_AGENT = "remnawave-sync/1.0"
+USER_AGENT = "remnaproxy-sync/1.0"
 
 
 def fetch_subscription(url: str) -> List[ParsedNode]:

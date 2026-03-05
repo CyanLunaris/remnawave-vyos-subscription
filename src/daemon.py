@@ -3,7 +3,7 @@
 Container PID 1 supervisor — manages sing-box + sync + heartbeat.
 
 Usage:
-  python3 daemon.py [--config /etc/remnawave/config.env]
+  python3 daemon.py [--config /etc/remnaproxy/config.env]
 """
 from __future__ import annotations
 import argparse
@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.sync import main as sync_main, load_env
 from src.heartbeat import main as heartbeat_main
 
-log = logging.getLogger("remnawave-daemon")
+log = logging.getLogger("remnaproxy-daemon")
 
 MAX_RESTARTS = 5
 RESTART_DELAY = 5  # seconds between sing-box restarts
@@ -50,7 +50,7 @@ class Daemon:
 
     def start(self) -> None:
         """Run initial sync, set up TUN, start background threads."""
-        log.info("Starting remnawave daemon")
+        log.info("Starting remnaproxy daemon")
 
         # Initial sync: downloads binaries + generates config
         try:
@@ -144,8 +144,8 @@ class Daemon:
             self._stop.wait(timeout=interval)
 
 
-def main(config_path: str = "/etc/remnawave/config.env") -> int:
-    log_dir = load_env(config_path).get("LOG_DIR", "/var/log/remnawave")
+def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
+    log_dir = load_env(config_path).get("LOG_DIR", "/var/log/remnaproxy")
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -172,6 +172,6 @@ def main(config_path: str = "/etc/remnawave/config.env") -> int:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/etc/remnawave/config.env")
+    parser.add_argument("--config", default="/etc/remnaproxy/config.env")
     args = parser.parse_args()
     sys.exit(main(args.config))

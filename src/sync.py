@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-remnawave-sync — fetch subscription and update sing-box config.
+remnaproxy-sync — fetch subscription and update sing-box config.
 
 Usage:
-  python3 sync.py [--config /etc/remnawave/config.env]
+  python3 sync.py [--config /etc/remnaproxy/config.env]
 """
 from __future__ import annotations
 import argparse
@@ -23,7 +23,7 @@ from src.config_generator import ConfigSettings, generate_config
 from src.state_manager import StateManager
 from src.subscription import fetch_subscription
 
-log = logging.getLogger("remnawave-sync")
+log = logging.getLogger("remnaproxy-sync")
 
 
 def load_env(path: str) -> dict:
@@ -40,11 +40,11 @@ def load_env(path: str) -> dict:
     return env
 
 
-def main(config_path: str = "/etc/remnawave/config.env") -> int:
+def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     env = load_env(config_path)
     env = {**os.environ, **env}  # env file takes precedence
 
-    log_dir = env.get("LOG_DIR", "/var/log/remnawave")
+    log_dir = env.get("LOG_DIR", "/var/log/remnaproxy")
     Path(log_dir).mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
@@ -62,8 +62,8 @@ def main(config_path: str = "/etc/remnawave/config.env") -> int:
 
     sing_box_bin  = env.get("XRAY_BIN", "/usr/local/bin/sing-box")
     xray_config   = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
-    nodes_file    = env.get("NODES_FILE", "/etc/remnawave/nodes.json")
-    state_file    = env.get("STATE_FILE", "/etc/remnawave/state.json")
+    nodes_file    = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
+    state_file    = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
     geoip_path    = env.get("GEOIP_PATH", "/etc/sing-box/geoip.db")
     geosite_path  = env.get("GEOSITE_PATH", "/etc/sing-box/geosite.db")
 
@@ -154,6 +154,6 @@ def _reload_sing_box() -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="/etc/remnawave/config.env")
+    parser.add_argument("--config", default="/etc/remnaproxy/config.env")
     args = parser.parse_args()
     sys.exit(main(args.config))
