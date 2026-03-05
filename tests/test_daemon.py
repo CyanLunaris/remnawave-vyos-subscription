@@ -82,7 +82,8 @@ class TestDaemon:
             if len(calls) >= 2:
                 d._stop.set()
 
-        with patch("time.sleep"):
-            d._loop(fake_fn, 1, "test")
+        # _loop uses _stop.wait(timeout=interval), not time.sleep.
+        # fake_fn sets _stop after 2 calls, so the loop exits quickly.
+        d._loop(fake_fn, 0, "test")
 
         assert len(calls) >= 2

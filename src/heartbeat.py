@@ -95,14 +95,11 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnawave/config.
 
 
 def _reload_sing_box() -> None:
-    result = subprocess.run(
-        ["/bin/systemctl", "reload-or-restart", "sing-box"],
-        capture_output=True, text=True,
-    )
-    if result.returncode == 0:
+    from src.tui_helpers import reload_sing_box
+    if reload_sing_box():
         log.info("sing-box reloaded")
     else:
-        log.error("sing-box reload failed: %s", result.stderr)
+        log.error("sing-box reload failed")
 
 
 def main(config_path: str = "/etc/remnawave/config.env") -> int:

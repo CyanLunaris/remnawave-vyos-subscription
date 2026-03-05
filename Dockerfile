@@ -18,8 +18,8 @@ RUN pip3 install --no-cache-dir --break-system-packages -r /app/requirements.txt
 COPY src/ /app/src/
 COPY config.env.example /app/
 
-# Create empty __init__.py for package resolution
-RUN touch /app/__init__.py /app/src/__init__.py
+# Ensure src package is importable
+RUN touch /app/src/__init__.py
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app

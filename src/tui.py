@@ -119,7 +119,7 @@ class NodesScreen(Screen):
 
     def action_switch_node(self) -> None:
         table = self.query_one(DataTable)
-        if table.cursor_row is None:
+        if table.row_count == 0:
             return
         idx = int(table.cursor_row_key.value)
         self._sm.set_current_index(idx)
