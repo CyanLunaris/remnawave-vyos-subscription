@@ -18,7 +18,7 @@ from pathlib import Path
 # Allow running directly as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.binary_manager import ensure_sing_box, ensure_geo_files
+from src.binary_manager import ensure_sing_box, ensure_rule_sets
 from src.config_generator import ConfigSettings, generate_config
 from src.state_manager import StateManager
 from src.subscription import fetch_subscription
@@ -64,16 +64,14 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     xray_config   = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
     nodes_file    = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
     state_file    = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
-    geoip_path    = env.get("GEOIP_PATH", "/etc/sing-box/geoip.db")
-    geosite_path  = env.get("GEOSITE_PATH", "/etc/sing-box/geosite.db")
+    rule_set_dir  = env.get("RULE_SET_DIR", "/etc/sing-box")
 
     settings = ConfigSettings(
         tun_interface=env.get("TUN_INTERFACE", "tun0"),
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
         geo_direct_site=env.get("GEO_DIRECT_SITE", "ru").split(","),
-        geoip_path=geoip_path,
-        geosite_path=geosite_path,
+        rule_set_dir=rule_set_dir,
     )
 
     sm = StateManager(nodes_file, state_file)
@@ -81,7 +79,8 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     # 1. Ensure binaries/geo files are present
     try:
         ensure_sing_box(sing_box_bin)
-        ensure_geo_files(geoip_path, geosite_path)
+        non_private_ip_codes = [c for c in settings.geo_direct_ip if c != "private"]
+        ensure_rule_sets(rule_set_dir, non_private_ip_codes, settings.geo_direct_site)
     except Exception as exc:
         log.error("Binary setup failed: %s", exc)
         return 1

@@ -80,8 +80,7 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
         geo_direct_site=env.get("GEO_DIRECT_SITE", "ru").split(","),
-        geoip_path=env.get("GEOIP_PATH", "/etc/sing-box/geoip.db"),
-        geosite_path=env.get("GEOSITE_PATH", "/etc/sing-box/geosite.db"),
+        rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
     )
 
     config = generate_config(node, settings)

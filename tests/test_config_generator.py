@@ -32,8 +32,7 @@ DEFAULT_SETTINGS = ConfigSettings(
     tun_address="172.19.0.1/30",
     geo_direct_ip=["private", "ru"],
     geo_direct_site=["ru"],
-    geoip_path="/etc/sing-box/geoip.db",
-    geosite_path="/etc/sing-box/geosite.db",
+    rule_set_dir="/etc/sing-box",
 )
 
 
@@ -132,20 +131,44 @@ class TestRouting:
     def test_geo_ip_direct_rules(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         rules = cfg["route"]["rules"]
-        geo_ip_rules = [r for r in rules if "geoip" in r]
-        geoip_codes = [code for r in geo_ip_rules for code in r["geoip"]]
-        assert "ru" in geoip_codes
+        rule_set_rules = [r for r in rules if "rule_set" in r and r.get("outbound") == "direct"]
+        all_tags = [tag for r in rule_set_rules for tag in r["rule_set"]]
+        assert "geoip-ru" in all_tags
 
     def test_geo_site_direct_rules(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         rules = cfg["route"]["rules"]
-        geo_site_rules = [r for r in rules if "geosite" in r]
-        geosite_codes = [code for r in geo_site_rules for code in r["geosite"]]
-        assert "ru" in geosite_codes
+        rule_set_rules = [r for r in rules if "rule_set" in r and r.get("outbound") == "direct"]
+        all_tags = [tag for r in rule_set_rules for tag in r["rule_set"]]
+        assert "geosite-ru" in all_tags
 
-    def test_geoip_db_path(self):
+    def test_route_has_rule_set_definitions(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
-        assert cfg["route"]["geoip"]["path"] == "/etc/sing-box/geoip.db"
+        rule_set = cfg["route"]["rule_set"]
+        tags = [rs["tag"] for rs in rule_set]
+        assert "geoip-ru" in tags
+        assert "geosite-ru" in tags
+
+    def test_rule_set_paths_use_srs_format(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        for rs in cfg["route"]["rule_set"]:
+            assert rs["path"].endswith(".srs"), f"Expected .srs path, got: {rs['path']}"
+            assert rs["format"] == "binary"
+            assert rs["type"] == "local"
+
+    def test_route_has_default_domain_resolver(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert cfg["route"]["default_domain_resolver"] == "local"
+
+    def test_route_no_geoip_geosite_sections(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert "geoip" not in cfg["route"]
+        assert "geosite" not in cfg["route"]
+
+    def test_rule_set_path_format(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        rs = next(r for r in cfg["route"]["rule_set"] if r["tag"] == "geoip-ru")
+        assert rs["path"] == "/etc/sing-box/geoip-ru.srs"
 
 
 class TestDns:
@@ -170,3 +193,28 @@ class TestDns:
     def test_dns_final_is_remote(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         assert cfg["dns"]["final"] == "remote"
+
+    def test_dns_rule_uses_rule_set_not_geosite(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        for rule in cfg["dns"]["rules"]:
+            assert "geosite" not in rule, "geosite removed in sing-box 1.12, use rule_set"
+
+    def test_dns_rule_has_action_route(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        rules = cfg["dns"]["rules"]
+        assert len(rules) > 0
+        for rule in rules:
+            assert rule.get("action") == "route", "DNS rule action is required in sing-box 1.11+"
+
+    def test_dns_rule_targets_local_server(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        rules = cfg["dns"]["rules"]
+        local_rule = next((r for r in rules if r.get("server") == "local"), None)
+        assert local_rule is not None
+
+    def test_dns_rule_uses_rule_set_for_geosite(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        rules = cfg["dns"]["rules"]
+        rule_set_rules = [r for r in rules if "rule_set" in r]
+        all_tags = [tag for r in rule_set_rules for tag in r["rule_set"]]
+        assert "geosite-ru" in all_tags
