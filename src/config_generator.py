@@ -37,12 +37,11 @@ def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
         "type": "tun",
         "tag": "tun-in",
         "interface_name": s.tun_interface,
-        "inet4_address": s.tun_address,
+        "address": [s.tun_address],
         "mtu": 1500,
         "auto_route": False,
         "strict_route": False,
         "stack": "system",
-        "sniff": True,
     }
 
 
@@ -168,9 +167,7 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
             },
             {
                 "tag": "local",
-                "type": "udp",
-                "server": "1.1.1.1",
-                "detour": "direct",
+                "type": "local",
             },
         ],
         "rules": rules,
@@ -182,6 +179,7 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
 
 def _build_route(s: ConfigSettings) -> Dict[str, Any]:
     rules: List[Dict[str, Any]] = [
+        {"action": "sniff"},
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]
