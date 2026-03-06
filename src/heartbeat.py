@@ -29,7 +29,7 @@ def check_connectivity(host: str, timeout: int = 5) -> bool:
     url = f"https://{host}"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as resp:
-            return resp.status == 200
+            return resp.status < 400
     except Exception:
         return False
 
@@ -79,7 +79,7 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         tun_interface=env.get("TUN_INTERFACE", "tun0"),
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
-        geo_direct_site=env.get("GEO_DIRECT_SITE", "ru").split(","),
+        geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
         rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
     )
 

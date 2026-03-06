@@ -70,7 +70,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         tun_interface=env.get("TUN_INTERFACE", "tun0"),
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
-        geo_direct_site=env.get("GEO_DIRECT_SITE", "ru").split(","),
+        geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
         rule_set_dir=rule_set_dir,
     )
 

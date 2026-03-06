@@ -34,6 +34,15 @@ class TestCheckConnectivity:
         with patch("urllib.request.urlopen", return_value=mock_resp):
             assert check_connectivity("cp.cloudflare.com", timeout=5) is True
 
+    def test_204_returns_true(self):
+        from src.heartbeat import check_connectivity
+        mock_resp = MagicMock()
+        mock_resp.status = 204
+        mock_resp.__enter__ = lambda s: s
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        with patch("urllib.request.urlopen", return_value=mock_resp):
+            assert check_connectivity("cp.cloudflare.com", timeout=5) is True
+
     def test_timeout_returns_false(self):
         import urllib.error
         from src.heartbeat import check_connectivity

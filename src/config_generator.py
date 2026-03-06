@@ -15,7 +15,7 @@ class ConfigSettings:
     tun_interface: str = "tun0"
     tun_address: str = "172.19.0.1/30"
     geo_direct_ip: List[str] = field(default_factory=lambda: ["private", "ru"])
-    geo_direct_site: List[str] = field(default_factory=lambda: ["ru"])
+    geo_direct_site: List[str] = field(default_factory=lambda: ["category-ru"])
     rule_set_dir: str = "/etc/sing-box"
     dns_server: str = "8.8.8.8"
 

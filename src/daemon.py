@@ -52,6 +52,12 @@ class Daemon:
         """Run initial sync, set up TUN, start background threads."""
         log.info("Starting remnaproxy daemon")
 
+        # Remove stale config so sync always generates a fresh one on startup
+        config_file = Path(self.env.get("XRAY_CONFIG", "/etc/sing-box/config.json"))
+        if config_file.exists():
+            config_file.unlink()
+            log.info("Removed stale config %s", config_file)
+
         # Initial sync: downloads binaries + generates config
         try:
             sync_main(self.config_path)
