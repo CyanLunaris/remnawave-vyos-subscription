@@ -12,7 +12,7 @@
 
 ## Режимы запуска
 
-### Вариант A — Docker-контейнер на VyOS
+### Вариант A — Podman-контейнер на VyOS
 
 **1. Настроить `config.env`** (положить в `/config/remnaproxy/config.env`):
 
@@ -22,10 +22,10 @@ SUBSCRIPTION_URL=https://panel.example.com/sub/TOKEN
 
 Остальные параметры см. в `config.env.example`.
 
-**2. Запустить контейнер:**
+**2. Запустить контейнер через VyOS CLI:**
 
 ```
-set container name remnaproxy image 'ghcr.io/CyanLunaris/remnawave-vyos-subscription:latest'
+set container name remnaproxy image 'ghcr.io/cyanlunaris/remnawave-vyos-subscription:latest'
 set container name remnaproxy capability net-admin
 set container name remnaproxy allow-host-networks
 set container name remnaproxy device tun source '/dev/net/tun'
@@ -40,11 +40,14 @@ set container name remnaproxy volume logs destination '/var/log/remnaproxy'
 commit ; save
 ```
 
-**3. Установить команду управления:**
+**3. Установить команду управления (TUI):**
 
 ```bash
 sudo bash container-setup.sh
 ```
+
+Скрипт устанавливает обёртку в `/config/scripts/remnaproxy-tui` (переживает обновления VyOS)
+и создаёт симлинк в `/usr/local/bin/remnaproxy-tui`.
 
 После этого TUI вызывается просто:
 
@@ -90,4 +93,4 @@ q        — выход
 | `HEARTBEAT_INTERVAL` | `30s` | Интервал проверки связи |
 | `HEARTBEAT_FAIL_THRESHOLD` | `2` | Неудач подряд до смены ноды |
 | `GEO_DIRECT_IP` | `private,ru` | GeoIP-коды для прямого маршрута |
-| `GEO_DIRECT_SITE` | `ru` | GeoSite-коды для прямого маршрута |
+| `GEO_DIRECT_SITE` | `category-ru` | GeoSite-коды для прямого маршрута |
