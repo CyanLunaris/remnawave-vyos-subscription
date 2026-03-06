@@ -47,8 +47,10 @@ class TestConfigStructure:
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["interface_name"] == "tun0"
-        assert tun["inet4_address"] == "172.19.0.1/30"
+        assert "172.19.0.1/30" in tun["address"]
         assert tun["auto_route"] is False
+        assert "inet4_address" not in tun
+        assert "sniff" not in tun
 
     def test_has_direct_outbound(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -115,6 +117,11 @@ class TestTrojanOutbound:
 
 
 class TestRouting:
+    def test_sniff_rule_is_first(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        rules = cfg["route"]["rules"]
+        assert rules[0] == {"action": "sniff"}
+
     def test_dns_rule_uses_hijack_action(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         rules = cfg["route"]["rules"]
@@ -184,11 +191,11 @@ class TestDns:
         remote = next(srv for srv in cfg["dns"]["servers"] if srv["tag"] == "remote")
         assert remote["server"] == "8.8.8.8"
 
-    def test_local_server_uses_udp_type(self):
+    def test_local_server_uses_local_type(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         local = next(s for s in cfg["dns"]["servers"] if s["tag"] == "local")
-        assert local["type"] == "udp"
-        assert "address" not in local
+        assert local["type"] == "local"
+        assert "server" not in local
 
     def test_dns_final_is_remote(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
