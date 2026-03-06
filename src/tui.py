@@ -116,12 +116,15 @@ class NodesScreen(Screen):
                 node.protocol, active,
                 key=str(i),
             )
+        table.focus()
+        if current < table.row_count:
+            table.move_cursor(row=current)
 
     def action_switch_node(self) -> None:
         table = self.query_one(DataTable)
         if table.row_count == 0:
             return
-        idx = int(table.cursor_row_key.value)
+        idx = table.cursor_row
         self._sm.set_current_index(idx)
 
         # Regenerate config
@@ -132,7 +135,7 @@ class NodesScreen(Screen):
                 tun_interface=env.get("TUN_INTERFACE", "tun0"),
                 tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
                 geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
-                geo_direct_site=env.get("GEO_DIRECT_SITE", "ru").split(","),
+                geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
                 rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
             )
             config = generate_config(node, settings)
