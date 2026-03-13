@@ -120,6 +120,9 @@ class NodesScreen(Screen):
         if current < table.row_count:
             table.move_cursor(row=current)
 
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        self.action_switch_node()
+
     def action_switch_node(self) -> None:
         table = self.query_one(DataTable)
         if table.row_count == 0:

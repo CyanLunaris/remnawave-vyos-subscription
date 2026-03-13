@@ -18,7 +18,6 @@ from pathlib import Path
 # Allow running directly as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.binary_manager import ensure_sing_box, ensure_rule_sets
 from src.config_generator import ConfigSettings, generate_config
 from src.state_manager import StateManager
 from src.subscription import fetch_subscription
@@ -76,13 +75,9 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
 
     sm = StateManager(nodes_file, state_file)
 
-    # 1. Ensure binaries/geo files are present
-    try:
-        ensure_sing_box(sing_box_bin)
-        non_private_ip_codes = [c for c in settings.geo_direct_ip if c != "private"]
-        ensure_rule_sets(rule_set_dir, non_private_ip_codes, settings.geo_direct_site)
-    except Exception as exc:
-        log.error("Binary setup failed: %s", exc)
+    # 1. Verify binaries/geo files are present (setup is handled by install.sh)
+    if not os.path.isfile(sing_box_bin) or not os.access(sing_box_bin, os.X_OK):
+        log.error("sing-box binary not found or not executable: %s — run install.sh", sing_box_bin)
         return 1
 
     # 2. Fetch subscription
