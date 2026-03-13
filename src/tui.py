@@ -86,7 +86,7 @@ class StatusPanel(Static):
 
 class NodesScreen(Screen):
     BINDINGS = [
-        Binding("enter", "switch_node", "Switch to selected"),
+        Binding("enter", "switch_node", "Switch to selected", priority=True),
         Binding("escape", "app.pop_screen", "Back"),
     ]
 
