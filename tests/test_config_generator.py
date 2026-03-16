@@ -311,3 +311,12 @@ class TestXhttpTransport:
     def test_host_empty_string_omits_host(self):
         cfg = generate_config(make_vless_xhttp_basic(), DEFAULT_SETTINGS)
         assert "host" not in cfg["outbounds"][0]["transport"]
+
+    def test_host_multi_value_split_into_list(self):
+        node = ParsedNode(
+            protocol="vless", host="xh.example.com", port=443, name="X",
+            uuid="u", security="tls", network="xhttp",
+            ws_path="/", ws_host="a.example.com, b.example.com",
+        )
+        cfg = generate_config(node, DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["host"] == ["a.example.com", "b.example.com"]

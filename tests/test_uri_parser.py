@@ -188,3 +188,13 @@ class TestXhttpUriParsing:
         uri = "vless://uuid@host.com:443?type=xhttp&extra=notjson#X"
         node = parse_uri(uri)
         assert node.xhttp_extra == {}
+
+    def test_vless_xhttp_with_method(self):
+        uri = "vless://uuid@host.com:443?type=xhttp&path=%2F&xhttpMethod=POST#X"
+        node = parse_uri(uri)
+        assert node.xhttp_method == "POST"
+
+    def test_vless_xhttp_method_defaults_empty(self):
+        uri = "vless://uuid@host.com:443?type=xhttp&path=%2F#X"
+        node = parse_uri(uri)
+        assert node.xhttp_method == ""

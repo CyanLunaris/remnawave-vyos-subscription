@@ -53,6 +53,7 @@ class ParsedNode:
     # xhttp transport
     xhttp_mode: str = ""
     xhttp_extra: dict = field(default_factory=dict)
+    xhttp_method: str = ""
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items()}
@@ -113,6 +114,7 @@ def _parse_vless(uri: str) -> Optional[ParsedNode]:
             grpc_service=params.get("serviceName", ""),
             xhttp_mode=params.get("xhttpMode", params.get("mode", "")),
             xhttp_extra=_parse_xhttp_extra(params.get("extra", "")),
+            xhttp_method=params.get("xhttpMethod", params.get("method", "")),
         )
         return node
     except Exception:

@@ -160,8 +160,10 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
         t: Dict[str, Any] = {
             "type": "xhttp",
             "path": node.ws_path or "/",
-            "method": "GET",
         }
+        # HTTP method: use parsed value, fall back to GET
+        t["method"] = node.xhttp_method or "GET"
+        # ws_host reused for xhttp host param (same semantics — set by _parse_vless)
         if node.ws_host:
             hosts = [h.strip() for h in node.ws_host.split(",") if h.strip()]
             if hosts:
