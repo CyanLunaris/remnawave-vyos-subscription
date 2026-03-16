@@ -40,12 +40,21 @@ def run_heartbeat_check(
     heartbeat_host: str,
     timeout: int,
     config_path: str = "/etc/remnaproxy/config.env",
+    cooldown: int = 2,
 ) -> bool:
     """Run one heartbeat check. Returns True if node was switched."""
+    # If we're in cooldown after a recent rotation, skip checks
+    remaining = sm.get_cooldown()
+    if remaining > 0:
+        sm.decrement_cooldown()
+        log.info("Post-rotation cooldown active (%d checks remaining), skipping", remaining)
+        return False
+
     if check_connectivity(heartbeat_host, timeout):
         if sm.get_fail_count() > 0:
             log.info("Connectivity restored, resetting fail count")
         sm.reset_fail_count()
+        sm.set_cooldown(0)
         return False
 
     count = sm.increment_fail_count()
@@ -55,6 +64,7 @@ def run_heartbeat_check(
         old_idx = sm.get_current_index()
         new_idx = sm.rotate_node()
         sm.reset_fail_count()
+        sm.set_cooldown(cooldown)
         node = sm.get_current_node()
         node_name = node.name if node else "unknown"
         log.warning("Switching node %d → %d (%s)", old_idx, new_idx, node_name)
@@ -128,6 +138,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         heartbeat_host=env.get("HEARTBEAT_HOST", "cp.cloudflare.com"),
         timeout=int(env.get("HEARTBEAT_TIMEOUT", "5")),
         config_path=config_path,
+        cooldown=int(env.get("HEARTBEAT_COOLDOWN", "2")),
     )
     return 0
 

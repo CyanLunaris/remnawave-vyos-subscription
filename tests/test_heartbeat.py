@@ -6,6 +6,7 @@ from src.uri_parser import ParsedNode
 from src.state_manager import StateManager
 
 
+
 def make_node(name: str) -> ParsedNode:
     return ParsedNode(
         protocol="vless", host=f"{name}.com", port=443,
@@ -112,3 +113,47 @@ class TestHeartbeatLogic:
                 run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5)
 
         assert sm.get_current_index() == 0  # wrapped
+
+
+class TestHeartbeatCooldown:
+    def setup_method(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def test_cooldown_skips_check_after_rotation(self):
+        from src.heartbeat import run_heartbeat_check
+        sm = make_sm_with_nodes(self.tmp, [make_node("A"), make_node("B"), make_node("C")])
+        sm.increment_fail_count()  # fail_count = 1
+
+        # First call: reaches threshold, rotates, sets cooldown
+        with patch("src.heartbeat.check_connectivity", return_value=False):
+            with patch("src.heartbeat._apply_new_node"):
+                switched = run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5, cooldown=2)
+        assert switched is True
+        assert sm.get_cooldown() == 2
+
+        # Second call (connectivity still down): cooldown active, should NOT rotate again
+        with patch("src.heartbeat.check_connectivity", return_value=False):
+            with patch("src.heartbeat._apply_new_node") as mock_apply:
+                switched2 = run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5, cooldown=2)
+        assert switched2 is False
+        assert mock_apply.call_count == 0
+        assert sm.get_cooldown() == 1  # decremented
+
+    def test_cooldown_zero_allows_check(self):
+        from src.heartbeat import run_heartbeat_check
+        sm = make_sm_with_nodes(self.tmp, [make_node("A"), make_node("B")])
+        sm.set_cooldown(0)
+
+        with patch("src.heartbeat.check_connectivity", return_value=False):
+            with patch("src.heartbeat._apply_new_node"):
+                switched = run_heartbeat_check(sm, fail_threshold=1, heartbeat_host="h.com", timeout=5, cooldown=2)
+        assert switched is True  # no cooldown, rotates normally
+
+    def test_cooldown_reset_on_success(self):
+        from src.heartbeat import run_heartbeat_check
+        sm = make_sm_with_nodes(self.tmp, [make_node("A"), make_node("B")])
+        sm.set_cooldown(1)
+
+        with patch("src.heartbeat.check_connectivity", return_value=True):
+            run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5, cooldown=2)
+        assert sm.get_cooldown() == 0
