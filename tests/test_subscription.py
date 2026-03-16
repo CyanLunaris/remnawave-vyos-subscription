@@ -159,3 +159,92 @@ class TestFetchSubscription:
         with patch("urllib.request.urlopen", return_value=mock_response):
             with pytest.raises(ConnectionError, match="403"):
                 fetch_subscription("https://panel.example.com/sub/TOKEN")
+
+
+class TestSingboxJsonShadowsocks:
+    def _make_ss_json(self, **overrides) -> str:
+        outbound = {
+            "type": "shadowsocks",
+            "tag": "SS-Node",
+            "server": "ss.example.com",
+            "server_port": 8388,
+            "method": "chacha20-ietf-poly1305",
+            "password": "testpass",
+        }
+        outbound.update(overrides)
+        return json.dumps({"outbounds": [outbound]})
+
+    def test_shadowsocks_node_parsed(self):
+        nodes = decode_subscription(self._make_ss_json())
+        assert len(nodes) == 1
+        assert nodes[0].protocol == "shadowsocks"
+
+    def test_shadowsocks_method_and_password(self):
+        nodes = decode_subscription(self._make_ss_json())
+        assert nodes[0].ss_method == "chacha20-ietf-poly1305"
+        assert nodes[0].password == "testpass"
+
+    def test_shadowsocks_host_port(self):
+        nodes = decode_subscription(self._make_ss_json())
+        assert nodes[0].host == "ss.example.com"
+        assert nodes[0].port == 8388
+
+    def test_shadowsocks_dummy_server_skipped(self):
+        nodes = decode_subscription(self._make_ss_json(server="0.0.0.0"))
+        assert len(nodes) == 0
+
+
+class TestSingboxJsonXhttp:
+    def _make_xhttp_json(self, extra_transport=None) -> str:
+        transport = {"type": "xhttp", "path": "/api", "host": ["xh.example.com"]}
+        if extra_transport:
+            transport.update(extra_transport)
+        outbound = {
+            "type": "vless",
+            "tag": "XHTTP-Node",
+            "server": "xh.example.com",
+            "server_port": 443,
+            "uuid": "test-uuid",
+            "tls": {"enabled": True, "server_name": "xh.example.com",
+                    "utls": {"enabled": True, "fingerprint": "chrome"}},
+            "transport": transport,
+        }
+        return json.dumps({"outbounds": [outbound]})
+
+    def test_xhttp_network(self):
+        nodes = decode_subscription(self._make_xhttp_json())
+        assert nodes[0].network == "xhttp"
+
+    def test_xhttp_path(self):
+        nodes = decode_subscription(self._make_xhttp_json())
+        assert nodes[0].ws_path == "/api"
+
+    def test_xhttp_host(self):
+        nodes = decode_subscription(self._make_xhttp_json())
+        assert nodes[0].ws_host == "xh.example.com"
+
+    def test_xhttp_mode(self):
+        nodes = decode_subscription(self._make_xhttp_json({"mode": "stream-one"}))
+        assert nodes[0].xhttp_mode == "stream-one"
+
+    def test_xhttp_extra(self):
+        nodes = decode_subscription(self._make_xhttp_json({"extra": {"noSSEHeader": True}}))
+        assert nodes[0].xhttp_extra == {"noSSEHeader": True}
+
+    def test_xhttp_no_mode_defaults_empty(self):
+        nodes = decode_subscription(self._make_xhttp_json())
+        assert nodes[0].xhttp_mode == ""
+
+    def test_xhttp_no_extra_defaults_empty(self):
+        nodes = decode_subscription(self._make_xhttp_json())
+        assert nodes[0].xhttp_extra == {}
+
+
+class TestUriListFallbackSS:
+    def test_ss_uri_in_plain_list(self):
+        import base64
+        userinfo = base64.urlsafe_b64encode(b"chacha20-ietf-poly1305:pw").decode().rstrip("=")
+        raw = f"ss://{userinfo}@host.com:8388#SS-1\n"
+        nodes = decode_subscription(raw)
+        assert len(nodes) == 1
+        assert nodes[0].protocol == "shadowsocks"
