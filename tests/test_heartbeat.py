@@ -149,11 +149,12 @@ class TestHeartbeatCooldown:
                 switched = run_heartbeat_check(sm, fail_threshold=1, heartbeat_host="h.com", timeout=5, cooldown=2)
         assert switched is True  # no cooldown, rotates normally
 
-    def test_cooldown_reset_on_success(self):
+    def test_success_resets_cooldown(self):
         from src.heartbeat import run_heartbeat_check
+        from unittest.mock import call
         sm = make_sm_with_nodes(self.tmp, [make_node("A"), make_node("B")])
-        sm.set_cooldown(1)
-
+        # cooldown defaults to 0 so the guard does not fire; connectivity succeeds
         with patch("src.heartbeat.check_connectivity", return_value=True):
-            run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5, cooldown=2)
-        assert sm.get_cooldown() == 0
+            with patch.object(sm, "set_cooldown", wraps=sm.set_cooldown) as mock_set_cooldown:
+                run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5, cooldown=2)
+        mock_set_cooldown.assert_called_with(0)
