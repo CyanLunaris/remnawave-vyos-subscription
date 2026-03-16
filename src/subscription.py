@@ -4,7 +4,7 @@ Fetch and decode Remnawave subscription.
 Remnawave returns different formats depending on User-Agent:
   - sfa/sfi/sfm/sft/singbox → sing-box JSON (outbounds array)
   - clash/mihomo            → Clash YAML
-  - fallback                → Base64-encoded URI list (vless://, vmess://, trojan://)
+  - fallback                → Base64-encoded URI list (vless://, vmess://, trojan://, ss://)
 
 We use User-Agent "sfa/1.0" to get sing-box JSON and parse proxy outbounds directly.
 Falls back to base64/plain URI parsing for older panel versions.
@@ -63,7 +63,7 @@ def decode_subscription(raw: str) -> List[ParsedNode]:
 
     Supports:
     - sing-box JSON (preferred, from sfa UA)
-    - Plain URI list (vless://, vmess://, trojan://)
+    - Plain URI list (vless://, vmess://, trojan://, ss://)
     - Base64-encoded URI list
     """
     if not raw.strip():
