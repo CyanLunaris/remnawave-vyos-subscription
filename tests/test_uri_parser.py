@@ -143,6 +143,12 @@ class TestShadowsocksParser:
     def test_unknown_scheme_still_none(self):
         assert parse_uri("ssr://something") is None
 
+    def test_ss_b64_unknown_method_returns_none(self):
+        import base64
+        userinfo = base64.urlsafe_b64encode(b"xchacha20:mypassword").decode().rstrip("=")
+        uri = f"ss://{userinfo}@host.com:1080"
+        assert parse_uri(uri) is None
+
 
 class TestXhttpUriParsing:
     def test_vless_xhttp_basic(self):

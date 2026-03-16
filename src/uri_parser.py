@@ -245,7 +245,8 @@ def _decode_ss_userinfo(userinfo: str) -> tuple:
         decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
         if ":" in decoded:
             method, _, password = decoded.partition(":")
-            return method, password
+            if method in _SS_METHODS:
+                return method, password
     except Exception:
         pass
 
@@ -257,6 +258,7 @@ def _parse_xhttp_extra(raw: str) -> dict:
     if not raw:
         return {}
     try:
+        # unquote handles the double-encoded case; idempotent for already-decoded values
         result = json.loads(urllib.parse.unquote(raw))
         return result if isinstance(result, dict) else {}
     except Exception:
