@@ -98,10 +98,87 @@ class TestTrojanParser:
 
 class TestParseUriErrors:
     def test_unknown_scheme_returns_none(self):
-        assert parse_uri("ss://something") is None
+        assert parse_uri("ssr://something") is None
 
     def test_empty_string_returns_none(self):
         assert parse_uri("") is None
 
     def test_malformed_vmess_returns_none(self):
         assert parse_uri("vmess://not-base64!!!") is None
+
+
+class TestShadowsocksParser:
+    def test_ss_sip002_basic(self):
+        import base64
+        userinfo = base64.urlsafe_b64encode(b"chacha20-ietf-poly1305:mypassword").decode().rstrip("=")
+        uri = f"ss://{userinfo}@ss.example.com:8388#SS-1"
+        node = parse_uri(uri)
+        assert node is not None
+        assert node.protocol == "shadowsocks"
+        assert node.host == "ss.example.com"
+        assert node.port == 8388
+        assert node.ss_method == "chacha20-ietf-poly1305"
+        assert node.password == "mypassword"
+        assert node.name == "SS-1"
+
+    def test_ss_plain_userinfo(self):
+        """Some servers emit method:password without base64."""
+        uri = "ss://aes-256-gcm:secretpass@host.com:443#plain"
+        node = parse_uri(uri)
+        assert node is not None
+        assert node.ss_method == "aes-256-gcm"
+        assert node.password == "secretpass"
+
+    def test_ss_no_name(self):
+        import base64
+        userinfo = base64.urlsafe_b64encode(b"chacha20-ietf-poly1305:pw").decode().rstrip("=")
+        uri = f"ss://{userinfo}@host.com:1080"
+        node = parse_uri(uri)
+        assert node is not None
+        assert node.name == ""
+
+    def test_ss_malformed_returns_none(self):
+        assert parse_uri("ss://notvalid") is None
+
+    def test_unknown_scheme_still_none(self):
+        assert parse_uri("ssr://something") is None
+
+
+class TestXhttpUriParsing:
+    def test_vless_xhttp_basic(self):
+        uri = (
+            "vless://uuid-1234@xh.example.com:443"
+            "?security=tls&sni=xh.example.com&type=xhttp"
+            "&path=%2Fapi&host=xh.example.com#XHTTP-1"
+        )
+        node = parse_uri(uri)
+        assert node is not None
+        assert node.network == "xhttp"
+        assert node.ws_path == "/api"
+        assert node.ws_host == "xh.example.com"
+        assert node.xhttp_mode == ""
+        assert node.xhttp_extra == {}
+
+    def test_vless_xhttp_with_mode(self):
+        uri = (
+            "vless://uuid@host.com:443"
+            "?security=reality&pbk=PK&sid=ab12&type=xhttp"
+            "&path=%2F&xhttpMode=stream-one#XHTTP-Mode"
+        )
+        node = parse_uri(uri)
+        assert node.xhttp_mode == "stream-one"
+
+    def test_vless_xhttp_with_extra(self):
+        import json, urllib.parse
+        extra = {"noSSEHeader": True}
+        uri = (
+            "vless://uuid@host.com:443"
+            f"?type=xhttp&path=%2F&extra={urllib.parse.quote(json.dumps(extra))}#XHTTP-Extra"
+        )
+        node = parse_uri(uri)
+        assert node.xhttp_extra == {"noSSEHeader": True}
+
+    def test_vless_xhttp_bad_extra_ignored(self):
+        uri = "vless://uuid@host.com:443?type=xhttp&extra=notjson#X"
+        node = parse_uri(uri)
+        assert node.xhttp_extra == {}
