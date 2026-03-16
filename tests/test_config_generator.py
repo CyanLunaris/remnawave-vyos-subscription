@@ -225,3 +225,98 @@ class TestDns:
         rule_set_rules = [r for r in rules if "rule_set" in r]
         all_tags = [tag for r in rule_set_rules for tag in r["rule_set"]]
         assert "geosite-ru" in all_tags
+
+
+def make_shadowsocks() -> ParsedNode:
+    return ParsedNode(
+        protocol="shadowsocks", host="ss.example.com", port=8388,
+        name="SS-1", ss_method="chacha20-ietf-poly1305", password="mypass",
+        security="none",
+    )
+
+def make_vless_xhttp() -> ParsedNode:
+    return ParsedNode(
+        protocol="vless", host="xh.example.com", port=443, name="XHTTP-1",
+        uuid="test-uuid", security="tls", network="xhttp",
+        sni="xh.example.com", fingerprint="chrome",
+        ws_path="/api", ws_host="xh.example.com",
+        xhttp_mode="stream-one",
+        xhttp_extra={"noSSEHeader": True},
+    )
+
+def make_vless_xhttp_basic() -> ParsedNode:
+    return ParsedNode(
+        protocol="vless", host="xh.example.com", port=443, name="XHTTP-Basic",
+        uuid="test-uuid", security="reality", network="xhttp",
+        reality_pbk="PK", reality_sid="ab12",
+        ws_path="/", ws_host="",
+    )
+
+
+class TestShadowsocksOutbound:
+    def test_outbound_type(self):
+        cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["type"] == "shadowsocks"
+
+    def test_method_and_password(self):
+        cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)
+        proxy = cfg["outbounds"][0]
+        assert proxy["method"] == "chacha20-ietf-poly1305"
+        assert proxy["password"] == "mypass"
+
+    def test_no_tls_block(self):
+        cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)
+        assert "tls" not in cfg["outbounds"][0]
+
+    def test_no_transport_block(self):
+        cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)
+        assert "transport" not in cfg["outbounds"][0]
+
+    def test_server_and_port(self):
+        cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)
+        proxy = cfg["outbounds"][0]
+        assert proxy["server"] == "ss.example.com"
+        assert proxy["server_port"] == 8388
+
+
+class TestXhttpTransport:
+    def test_transport_type_is_xhttp(self):
+        cfg = generate_config(make_vless_xhttp(), DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["type"] == "xhttp"
+
+    def test_path(self):
+        cfg = generate_config(make_vless_xhttp(), DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["path"] == "/api"
+
+    def test_host_is_list(self):
+        cfg = generate_config(make_vless_xhttp(), DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["host"] == ["xh.example.com"]
+
+    def test_mode_included_when_set(self):
+        cfg = generate_config(make_vless_xhttp(), DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["mode"] == "stream-one"
+
+    def test_extra_included_when_set(self):
+        cfg = generate_config(make_vless_xhttp(), DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["extra"] == {"noSSEHeader": True}
+
+    def test_mode_omitted_when_empty(self):
+        cfg = generate_config(make_vless_xhttp_basic(), DEFAULT_SETTINGS)
+        assert "mode" not in cfg["outbounds"][0]["transport"]
+
+    def test_extra_omitted_when_empty(self):
+        cfg = generate_config(make_vless_xhttp_basic(), DEFAULT_SETTINGS)
+        assert "extra" not in cfg["outbounds"][0]["transport"]
+
+    def test_host_empty_string_omits_host(self):
+        cfg = generate_config(make_vless_xhttp_basic(), DEFAULT_SETTINGS)
+        assert "host" not in cfg["outbounds"][0]["transport"]
+
+    def test_host_multi_value_split_into_list(self):
+        node = ParsedNode(
+            protocol="vless", host="xh.example.com", port=443, name="X",
+            uuid="u", security="tls", network="xhttp",
+            ws_path="/", ws_host="a.example.com, b.example.com",
+        )
+        cfg = generate_config(node, DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["host"] == ["a.example.com", "b.example.com"]

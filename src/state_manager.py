@@ -82,3 +82,19 @@ class StateManager:
         state = self._load_state()
         state["fail_count"] = 0
         self._save_state(state)
+
+    def get_cooldown(self) -> int:
+        return self._load_state().get("cooldown_remaining", 0)
+
+    def set_cooldown(self, value: int) -> None:
+        state = self._load_state()
+        state["cooldown_remaining"] = max(0, value)
+        self._save_state(state)
+
+    def decrement_cooldown(self) -> int:
+        """Decrement cooldown by 1 (min 0). Returns new value."""
+        state = self._load_state()
+        new_val = max(0, state.get("cooldown_remaining", 0) - 1)
+        state["cooldown_remaining"] = new_val
+        self._save_state(state)
+        return new_val

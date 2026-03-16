@@ -4,7 +4,7 @@ Fetch and decode Remnawave subscription.
 Remnawave returns different formats depending on User-Agent:
   - sfa/sfi/sfm/sft/singbox → sing-box JSON (outbounds array)
   - clash/mihomo            → Clash YAML
-  - fallback                → Base64-encoded URI list (vless://, vmess://, trojan://)
+  - fallback                → Base64-encoded URI list (vless://, vmess://, trojan://, ss://)
 
 We use User-Agent "sfa/1.0" to get sing-box JSON and parse proxy outbounds directly.
 Falls back to base64/plain URI parsing for older panel versions.
@@ -42,7 +42,7 @@ _DEVICE_HEADERS = {
     "x-device-model": "iPhone 14 Pro Max",
 }
 
-_PROXY_TYPES = {"vless", "vmess", "trojan"}
+_PROXY_TYPES = {"vless", "vmess", "trojan", "shadowsocks"}
 
 
 def fetch_subscription(url: str) -> List[ParsedNode]:
@@ -63,7 +63,7 @@ def decode_subscription(raw: str) -> List[ParsedNode]:
 
     Supports:
     - sing-box JSON (preferred, from sfa UA)
-    - Plain URI list (vless://, vmess://, trojan://)
+    - Plain URI list (vless://, vmess://, trojan://, ss://)
     - Base64-encoded URI list
     """
     if not raw.strip():
@@ -136,8 +136,21 @@ def _singbox_outbound_to_node(o: Dict[str, Any]) -> Optional[ParsedNode]:
 
         network = transport_cfg.get("type", "tcp") if transport_cfg else "tcp"
         ws_path = transport_cfg.get("path", "") if transport_cfg else ""
-        ws_host = (transport_cfg.get("headers") or {}).get("Host", "") if transport_cfg else ""
         grpc_service = transport_cfg.get("service_name", "") if transport_cfg else ""
+
+        # ws_host: WebSocket uses headers.Host; xhttp uses host list (first element)
+        if transport_cfg:
+            if network == "xhttp":
+                raw_hosts = transport_cfg.get("host", [])
+                ws_host = raw_hosts[0] if isinstance(raw_hosts, list) and raw_hosts else (raw_hosts if isinstance(raw_hosts, str) else "")
+            else:
+                ws_host = (transport_cfg.get("headers") or {}).get("Host", "")
+        else:
+            ws_host = ""
+
+        xhttp_mode = transport_cfg.get("mode", "") if transport_cfg and network == "xhttp" else ""
+        xhttp_extra_raw = transport_cfg.get("extra", {}) if transport_cfg and network == "xhttp" else {}
+        xhttp_extra = xhttp_extra_raw if isinstance(xhttp_extra_raw, dict) else {}
 
         kwargs: Dict[str, Any] = dict(
             protocol=proto,
@@ -153,6 +166,8 @@ def _singbox_outbound_to_node(o: Dict[str, Any]) -> Optional[ParsedNode]:
             ws_path=ws_path,
             ws_host=ws_host,
             grpc_service=grpc_service,
+            xhttp_mode=xhttp_mode,
+            xhttp_extra=xhttp_extra,
         )
 
         if proto in ("vless", "vmess"):
@@ -163,6 +178,9 @@ def _singbox_outbound_to_node(o: Dict[str, Any]) -> Optional[ParsedNode]:
             kwargs["alter_id"] = int(o.get("alter_id", 0))
             kwargs["vmess_security"] = o.get("security", "auto")
         if proto == "trojan":
+            kwargs["password"] = o.get("password", "")
+        if proto == "shadowsocks":
+            kwargs["ss_method"] = o.get("method", "")
             kwargs["password"] = o.get("password", "")
 
         return ParsedNode(**kwargs)

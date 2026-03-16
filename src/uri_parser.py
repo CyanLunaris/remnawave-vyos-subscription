@@ -44,8 +44,16 @@ class ParsedNode:
     # gRPC transport
     grpc_service: str = ""
 
-    # Trojan-specific
+    # Trojan-specific / Shadowsocks password
     password: str = ""
+
+    # Shadowsocks-specific
+    ss_method: str = ""
+
+    # xhttp transport
+    xhttp_mode: str = ""
+    xhttp_extra: dict = field(default_factory=dict)
+    xhttp_method: str = ""
 
     def to_dict(self) -> dict:
         return {k: v for k, v in self.__dict__.items()}
@@ -62,6 +70,8 @@ def parse_uri(uri: str) -> Optional[ParsedNode]:
         return _parse_vmess(uri)
     if uri.startswith("trojan://"):
         return _parse_trojan(uri)
+    if uri.startswith("ss://"):
+        return _parse_shadowsocks(uri)
     return None
 
 
@@ -102,6 +112,9 @@ def _parse_vless(uri: str) -> Optional[ParsedNode]:
             ws_path=urllib.parse.unquote(params.get("path", "")),
             ws_host=params.get("host", ""),
             grpc_service=params.get("serviceName", ""),
+            xhttp_mode=params.get("xhttpMode", params.get("mode", "")),
+            xhttp_extra=_parse_xhttp_extra(params.get("extra", "")),
+            xhttp_method=params.get("xhttpMethod", params.get("method", "")),
         )
         return node
     except Exception:
@@ -177,6 +190,81 @@ def _parse_trojan(uri: str) -> Optional[ParsedNode]:
         return node
     except Exception:
         return None
+
+
+_SS_METHODS = {
+    "chacha20-ietf-poly1305", "aes-128-gcm", "aes-256-gcm",
+    "aes-128-cfb", "aes-256-cfb", "rc4-md5", "2022-blake3-aes-128-gcm",
+    "2022-blake3-aes-256-gcm", "2022-blake3-chacha20-poly1305",
+}
+
+
+def _parse_shadowsocks(uri: str) -> Optional[ParsedNode]:
+    try:
+        without_scheme = uri[len("ss://"):]
+        name = ""
+        if "#" in without_scheme:
+            without_scheme, name = without_scheme.rsplit("#", 1)
+            name = urllib.parse.unquote(name)
+
+        # Strip query params (plugin etc — not supported)
+        if "?" in without_scheme:
+            without_scheme = without_scheme.split("?", 1)[0]
+
+        userinfo, hostport = without_scheme.rsplit("@", 1)
+        host, port_str = _split_host_port(hostport)
+        port = int(port_str)
+
+        method, password = _decode_ss_userinfo(userinfo)
+        if method is None:
+            return None
+
+        return ParsedNode(
+            protocol="shadowsocks",
+            host=host,
+            port=port,
+            name=name,
+            ss_method=method,
+            password=password,
+            security="none",
+        )
+    except Exception:
+        return None
+
+
+def _decode_ss_userinfo(userinfo: str) -> tuple:
+    """Return (method, password) from SIP002 userinfo (base64 or plain)."""
+    # Plain text: method:password (contains known method name)
+    if ":" in userinfo:
+        maybe_method, _, maybe_pass = userinfo.partition(":")
+        if maybe_method in _SS_METHODS:
+            return maybe_method, maybe_pass
+
+    # SIP002 base64: urlsafe_b64decode("method:password")
+    try:
+        padding = 4 - len(userinfo) % 4
+        padded = userinfo + ("=" * padding if padding != 4 else "")
+        decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
+        if ":" in decoded:
+            method, _, password = decoded.partition(":")
+            if method in _SS_METHODS:
+                return method, password
+    except Exception:
+        pass
+
+    return None, None
+
+
+def _parse_xhttp_extra(raw: str) -> dict:
+    """Parse xhttp extra JSON param, return {} on failure."""
+    if not raw:
+        return {}
+    try:
+        # unquote handles the double-encoded case; idempotent for already-decoded values
+        result = json.loads(urllib.parse.unquote(raw))
+        return result if isinstance(result, dict) else {}
+    except Exception:
+        return {}
 
 
 def _split_host_port(hostport: str) -> tuple:
