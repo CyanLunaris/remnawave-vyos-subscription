@@ -52,6 +52,7 @@ def _build_outbound(node: ParsedNode) -> Dict[str, Any]:
         "vless": _build_vless_outbound,
         "vmess": _build_vmess_outbound,
         "trojan": _build_trojan_outbound,
+        "shadowsocks": _build_shadowsocks_outbound,
     }
     builder = builders.get(node.protocol)
     if builder is None:
@@ -109,6 +110,17 @@ def _build_trojan_outbound(node: ParsedNode) -> Dict[str, Any]:
     return out
 
 
+def _build_shadowsocks_outbound(node: ParsedNode) -> Dict[str, Any]:
+    return {
+        "type": "shadowsocks",
+        "tag": "proxy",
+        "server": node.host,
+        "server_port": node.port,
+        "method": node.ss_method,
+        "password": node.password,
+    }
+
+
 def _build_direct_outbound() -> Dict[str, Any]:
     return {"type": "direct", "tag": "direct"}
 
@@ -144,6 +156,21 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
         return {"type": "grpc", "service_name": node.grpc_service}
     if node.network == "http":
         return {"type": "http", "path": node.ws_path or "/"}
+    if node.network == "xhttp":
+        t: Dict[str, Any] = {
+            "type": "xhttp",
+            "path": node.ws_path or "/",
+            "method": "GET",
+        }
+        if node.ws_host:
+            hosts = [h.strip() for h in node.ws_host.split(",") if h.strip()]
+            if hosts:
+                t["host"] = hosts
+        if node.xhttp_mode:
+            t["mode"] = node.xhttp_mode
+        if node.xhttp_extra:
+            t["extra"] = node.xhttp_extra
+        return t
     return {}  # tcp — no transport block needed
 
 
