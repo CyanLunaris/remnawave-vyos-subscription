@@ -38,7 +38,7 @@ def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
         "tag": "tun-in",
         "interface_name": s.tun_interface,
         "address": [s.tun_address],
-        "mtu": 1500,
+        "mtu": 1400,
         "auto_route": False,
         "strict_route": False,
         "stack": "system",
@@ -68,7 +68,7 @@ def _build_vless_outbound(node: ParsedNode) -> Dict[str, Any]:
         "server_port": node.port,
         "uuid": node.uuid,
     }
-    if node.flow:
+    if node.flow and node.network == "tcp":
         out["flow"] = node.flow
     out["tls"] = _build_tls(node)
     transport = _build_transport(node)
@@ -161,8 +161,8 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
             "type": "xhttp",
             "path": node.ws_path or "/",
         }
-        # HTTP method: use parsed value, fall back to GET
-        t["method"] = node.xhttp_method or "GET"
+        if node.xhttp_method:
+            t["method"] = node.xhttp_method
         # ws_host reused for xhttp host param (same semantics — set by _parse_vless)
         if node.ws_host:
             hosts = [h.strip() for h in node.ws_host.split(",") if h.strip()]

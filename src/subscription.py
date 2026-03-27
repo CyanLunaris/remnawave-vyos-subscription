@@ -151,6 +151,7 @@ def _singbox_outbound_to_node(o: Dict[str, Any]) -> Optional[ParsedNode]:
         xhttp_mode = transport_cfg.get("mode", "") if transport_cfg and network == "xhttp" else ""
         xhttp_extra_raw = transport_cfg.get("extra", {}) if transport_cfg and network == "xhttp" else {}
         xhttp_extra = xhttp_extra_raw if isinstance(xhttp_extra_raw, dict) else {}
+        xhttp_method = transport_cfg.get("method", "") if transport_cfg and network == "xhttp" else ""
 
         kwargs: Dict[str, Any] = dict(
             protocol=proto,
@@ -168,6 +169,7 @@ def _singbox_outbound_to_node(o: Dict[str, Any]) -> Optional[ParsedNode]:
             grpc_service=grpc_service,
             xhttp_mode=xhttp_mode,
             xhttp_extra=xhttp_extra,
+            xhttp_method=xhttp_method,
         )
 
         if proto in ("vless", "vmess"):
