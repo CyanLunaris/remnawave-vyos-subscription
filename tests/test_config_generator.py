@@ -52,6 +52,11 @@ class TestConfigStructure:
         assert "inet4_address" not in tun
         assert "sniff" not in tun
 
+    def test_tun_mtu_is_1400(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["mtu"] == 1400
+
     def test_has_direct_outbound(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tags = [o["tag"] for o in cfg["outbounds"]]
@@ -253,6 +258,26 @@ def make_vless_xhttp_basic() -> ParsedNode:
     )
 
 
+class TestFlowExclusion:
+    def test_flow_excluded_for_grpc(self):
+        node = ParsedNode(
+            protocol="vless", host="xh.example.com", port=443,
+            uuid="u", security="tls", network="grpc",
+            grpc_service="myService", flow="xtls-rprx-vision",
+        )
+        cfg = generate_config(node, DEFAULT_SETTINGS)
+        assert "flow" not in cfg["outbounds"][0]
+
+    def test_flow_excluded_for_xhttp(self):
+        node = ParsedNode(
+            protocol="vless", host="xh.example.com", port=443,
+            uuid="u", security="tls", network="xhttp",
+            ws_path="/", flow="xtls-rprx-vision",
+        )
+        cfg = generate_config(node, DEFAULT_SETTINGS)
+        assert "flow" not in cfg["outbounds"][0]
+
+
 class TestShadowsocksOutbound:
     def test_outbound_type(self):
         cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)
@@ -320,3 +345,17 @@ class TestXhttpTransport:
         )
         cfg = generate_config(node, DEFAULT_SETTINGS)
         assert cfg["outbounds"][0]["transport"]["host"] == ["a.example.com", "b.example.com"]
+
+    def test_method_omitted_when_not_set(self):
+        cfg = generate_config(make_vless_xhttp_basic(), DEFAULT_SETTINGS)
+        assert "method" not in cfg["outbounds"][0]["transport"]
+
+    def test_method_set_when_explicit(self):
+        node = ParsedNode(
+            protocol="vless", host="xh.example.com", port=443, name="XHTTP-POST",
+            uuid="test-uuid", security="tls", network="xhttp",
+            sni="xh.example.com", fingerprint="chrome",
+            ws_path="/upload", xhttp_method="POST",
+        )
+        cfg = generate_config(node, DEFAULT_SETTINGS)
+        assert cfg["outbounds"][0]["transport"]["method"] == "POST"

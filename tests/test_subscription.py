@@ -239,6 +239,14 @@ class TestSingboxJsonXhttp:
         nodes = decode_subscription(self._make_xhttp_json())
         assert nodes[0].xhttp_extra == {}
 
+    def test_xhttp_method(self):
+        nodes = decode_subscription(self._make_xhttp_json({"method": "POST"}))
+        assert nodes[0].xhttp_method == "POST"
+
+    def test_xhttp_no_method_defaults_empty(self):
+        nodes = decode_subscription(self._make_xhttp_json())
+        assert nodes[0].xhttp_method == ""
+
 
 class TestUriListFallbackSS:
     def test_ss_uri_in_plain_list(self):
