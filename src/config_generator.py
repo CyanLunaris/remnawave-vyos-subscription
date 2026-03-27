@@ -240,7 +240,6 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
         ],
         "rules": rules,
         "final": "remote",
-        "cache": True,
     }
 
 

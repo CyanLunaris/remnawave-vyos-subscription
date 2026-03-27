@@ -285,12 +285,6 @@ def make_vless_xhttp_basic() -> ParsedNode:
     )
 
 
-class TestDnsCache:
-    def test_dns_cache_enabled(self):
-        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
-        assert cfg["dns"]["cache"] is True
-
-
 class TestMultiplex:
     def _mux_settings(self, protocol: str = "h2mux") -> ConfigSettings:
         return ConfigSettings(
