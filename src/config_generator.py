@@ -18,15 +18,42 @@ class ConfigSettings:
     geo_direct_site: List[str] = field(default_factory=lambda: ["category-ru"])
     rule_set_dir: str = "/etc/sing-box"
     dns_server: str = "8.8.8.8"
+    # Multiplex protocol for TCP-based outbounds: "smux", "yamux", "h2mux", or "" (disabled)
+    # gRPC and xHTTP already have built-in multiplexing and are excluded automatically.
+    multiplex_protocol: str = ""
 
 
 def generate_config(node: ParsedNode, settings: ConfigSettings) -> Dict[str, Any]:
+    outbound = _build_outbound(node)
+    _maybe_apply_multiplex(outbound, node, settings)
     return {
         "log": {"level": "warn", "output": "/var/log/remnaproxy/sing-box.log"},
         "dns": _build_dns(settings),
         "inbounds": [_build_tun_inbound(settings)],
-        "outbounds": [_build_outbound(node), _build_direct_outbound()],
+        "outbounds": [outbound, _build_direct_outbound()],
         "route": _build_route(settings),
+    }
+
+
+def _maybe_apply_multiplex(outbound: Dict[str, Any], node: ParsedNode, settings: ConfigSettings) -> None:
+    """Add multiplex block to outbound for TCP-based protocols.
+
+    gRPC and xHTTP already provide their own connection multiplexing and are excluded.
+    Multiplex is also skipped for Shadowsocks (no upstream support in common servers).
+    """
+    if not settings.multiplex_protocol:
+        return
+    # gRPC/xHTTP: connection reuse is inherent to the transport; adding smux on top is redundant
+    if node.network in ("grpc", "xhttp"):
+        return
+    # Shadowsocks servers rarely support sing-box multiplex
+    if node.protocol == "shadowsocks":
+        return
+    outbound["multiplex"] = {
+        "enabled": True,
+        "protocol": settings.multiplex_protocol,
+        "max_connections": 4,
+        "min_streams": 4,
     }
 
 
@@ -201,6 +228,7 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
         ],
         "rules": rules,
         "final": "remote",
+        "cache": True,
     }
 
 

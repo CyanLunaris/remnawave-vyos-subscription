@@ -91,6 +91,7 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
         geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
         rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
+        multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
     )
 
     config = generate_config(node, settings)

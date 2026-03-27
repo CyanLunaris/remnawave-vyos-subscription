@@ -258,6 +258,58 @@ def make_vless_xhttp_basic() -> ParsedNode:
     )
 
 
+class TestDnsCache:
+    def test_dns_cache_enabled(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert cfg["dns"]["cache"] is True
+
+
+class TestMultiplex:
+    def _mux_settings(self, protocol: str = "h2mux") -> ConfigSettings:
+        return ConfigSettings(
+            tun_interface="tun0",
+            tun_address="172.19.0.1/30",
+            geo_direct_ip=["private"],
+            geo_direct_site=[],
+            rule_set_dir="/etc/sing-box",
+            multiplex_protocol=protocol,
+        )
+
+    def test_multiplex_added_for_tcp(self):
+        cfg = generate_config(make_vless_reality(), self._mux_settings())
+        assert cfg["outbounds"][0]["multiplex"]["enabled"] is True
+        assert cfg["outbounds"][0]["multiplex"]["protocol"] == "h2mux"
+
+    def test_multiplex_protocol_values(self):
+        for proto in ("smux", "yamux", "h2mux"):
+            cfg = generate_config(make_vless_reality(), self._mux_settings(proto))
+            assert cfg["outbounds"][0]["multiplex"]["protocol"] == proto
+
+    def test_multiplex_not_added_for_grpc(self):
+        node = ParsedNode(
+            protocol="vless", host="g.example.com", port=443,
+            uuid="u", security="tls", network="grpc", grpc_service="svc",
+        )
+        cfg = generate_config(node, self._mux_settings())
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_not_added_for_xhttp(self):
+        cfg = generate_config(make_vless_xhttp(), self._mux_settings())
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_not_added_for_shadowsocks(self):
+        cfg = generate_config(make_shadowsocks(), self._mux_settings())
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_absent_when_protocol_empty(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_added_for_ws(self):
+        cfg = generate_config(make_vmess_ws(), self._mux_settings())
+        assert "multiplex" in cfg["outbounds"][0]
+
+
 class TestFlowExclusion:
     def test_flow_excluded_for_grpc(self):
         node = ParsedNode(
