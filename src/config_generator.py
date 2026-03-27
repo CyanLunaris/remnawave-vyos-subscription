@@ -18,9 +18,17 @@ class ConfigSettings:
     geo_direct_site: List[str] = field(default_factory=lambda: ["category-ru"])
     rule_set_dir: str = "/etc/sing-box"
     dns_server: str = "8.8.8.8"
+    # TUN network stack: "mixed" (gvisor UDP + system TCP), "system", or "gvisor"
+    # "mixed" is recommended for router use: kernel-optimised TCP + gvisor concurrent UDP
+    tun_stack: str = "mixed"
+    # Enable Generic Segmentation Offload — batches small packets, reduces CPU per-packet.
+    # Requires kernel GSO support (standard on Linux 4.x+). Safe to enable on VyOS.
+    tun_gso: bool = False
     # Multiplex protocol for TCP-based outbounds: "smux", "yamux", "h2mux", or "" (disabled)
     # gRPC and xHTTP already have built-in multiplexing and are excluded automatically.
     multiplex_protocol: str = ""
+    # Max VPN connections in the multiplex pool. Increase for more concurrent devices.
+    multiplex_max_connections: int = 4
 
 
 def generate_config(node: ParsedNode, settings: ConfigSettings) -> Dict[str, Any]:
@@ -52,15 +60,15 @@ def _maybe_apply_multiplex(outbound: Dict[str, Any], node: ParsedNode, settings:
     outbound["multiplex"] = {
         "enabled": True,
         "protocol": settings.multiplex_protocol,
-        "max_connections": 4,
-        "min_streams": 4,
+        "max_connections": settings.multiplex_max_connections,
+        "min_streams": settings.multiplex_max_connections,
     }
 
 
 # ── Inbounds ──────────────────────────────────────────────────────────────────
 
 def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
-    return {
+    inbound: Dict[str, Any] = {
         "type": "tun",
         "tag": "tun-in",
         "interface_name": s.tun_interface,
@@ -68,8 +76,12 @@ def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
         "mtu": 1400,
         "auto_route": False,
         "strict_route": False,
-        "stack": "system",
+        "stack": s.tun_stack,
     }
+    if s.tun_gso:
+        inbound["gso"] = True
+        inbound["gso_max_size"] = 65536
+    return inbound
 
 
 # ── Outbounds ─────────────────────────────────────────────────────────────────
@@ -236,7 +248,9 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
 
 def _build_route(s: ConfigSettings) -> Dict[str, Any]:
     rules: List[Dict[str, Any]] = [
-        {"action": "sniff"},
+        # 300 ms sniff timeout prevents blocking connections from devices that
+        # do not immediately send recognisable protocol data (IoT, game consoles).
+        {"action": "sniff", "timeout": "300ms"},
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]

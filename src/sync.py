@@ -71,7 +71,10 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
         geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
         rule_set_dir=rule_set_dir,
+        tun_stack=env.get("TUN_STACK", "mixed"),
+        tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
         multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
+        multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
     )
 
     sm = StateManager(nodes_file, state_file)

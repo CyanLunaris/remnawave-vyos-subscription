@@ -57,6 +57,29 @@ class TestConfigStructure:
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["mtu"] == 1400
 
+    def test_tun_default_stack_is_mixed(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["stack"] == "mixed"
+
+    def test_tun_stack_configurable(self):
+        s = ConfigSettings(tun_stack="gvisor")
+        cfg = generate_config(make_vless_reality(), s)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["stack"] == "gvisor"
+
+    def test_tun_gso_absent_by_default(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert "gso" not in tun
+
+    def test_tun_gso_present_when_enabled(self):
+        s = ConfigSettings(tun_gso=True)
+        cfg = generate_config(make_vless_reality(), s)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["gso"] is True
+        assert tun["gso_max_size"] == 65536
+
     def test_has_direct_outbound(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tags = [o["tag"] for o in cfg["outbounds"]]
@@ -125,7 +148,11 @@ class TestRouting:
     def test_sniff_rule_is_first(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         rules = cfg["route"]["rules"]
-        assert rules[0] == {"action": "sniff"}
+        assert rules[0]["action"] == "sniff"
+
+    def test_sniff_rule_has_timeout(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert cfg["route"]["rules"][0]["timeout"] == "300ms"
 
     def test_dns_rule_uses_hijack_action(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -304,6 +331,15 @@ class TestMultiplex:
     def test_multiplex_absent_when_protocol_empty(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_max_connections_default(self):
+        cfg = generate_config(make_vless_reality(), self._mux_settings())
+        assert cfg["outbounds"][0]["multiplex"]["max_connections"] == 4
+
+    def test_multiplex_max_connections_custom(self):
+        s = ConfigSettings(multiplex_protocol="h2mux", multiplex_max_connections=8)
+        cfg = generate_config(make_vless_reality(), s)
+        assert cfg["outbounds"][0]["multiplex"]["max_connections"] == 8
 
     def test_multiplex_added_for_ws(self):
         cfg = generate_config(make_vmess_ws(), self._mux_settings())
