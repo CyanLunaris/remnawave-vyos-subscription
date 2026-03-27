@@ -57,6 +57,29 @@ class TestConfigStructure:
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["mtu"] == 1400
 
+    def test_tun_default_stack_is_mixed(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["stack"] == "mixed"
+
+    def test_tun_stack_configurable(self):
+        s = ConfigSettings(tun_stack="gvisor")
+        cfg = generate_config(make_vless_reality(), s)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["stack"] == "gvisor"
+
+    def test_tun_gso_absent_by_default(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert "gso" not in tun
+
+    def test_tun_gso_present_when_enabled(self):
+        s = ConfigSettings(tun_gso=True)
+        cfg = generate_config(make_vless_reality(), s)
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["gso"] is True
+        assert tun["gso_max_size"] == 65536
+
     def test_has_direct_outbound(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tags = [o["tag"] for o in cfg["outbounds"]]
@@ -125,7 +148,11 @@ class TestRouting:
     def test_sniff_rule_is_first(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         rules = cfg["route"]["rules"]
-        assert rules[0] == {"action": "sniff"}
+        assert rules[0]["action"] == "sniff"
+
+    def test_sniff_rule_has_timeout(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert cfg["route"]["rules"][0]["timeout"] == "300ms"
 
     def test_dns_rule_uses_hijack_action(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -256,6 +283,67 @@ def make_vless_xhttp_basic() -> ParsedNode:
         reality_pbk="PK", reality_sid="ab12",
         ws_path="/", ws_host="",
     )
+
+
+class TestDnsCache:
+    def test_dns_cache_enabled(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert cfg["dns"]["cache"] is True
+
+
+class TestMultiplex:
+    def _mux_settings(self, protocol: str = "h2mux") -> ConfigSettings:
+        return ConfigSettings(
+            tun_interface="tun0",
+            tun_address="172.19.0.1/30",
+            geo_direct_ip=["private"],
+            geo_direct_site=[],
+            rule_set_dir="/etc/sing-box",
+            multiplex_protocol=protocol,
+        )
+
+    def test_multiplex_added_for_tcp(self):
+        cfg = generate_config(make_vless_reality(), self._mux_settings())
+        assert cfg["outbounds"][0]["multiplex"]["enabled"] is True
+        assert cfg["outbounds"][0]["multiplex"]["protocol"] == "h2mux"
+
+    def test_multiplex_protocol_values(self):
+        for proto in ("smux", "yamux", "h2mux"):
+            cfg = generate_config(make_vless_reality(), self._mux_settings(proto))
+            assert cfg["outbounds"][0]["multiplex"]["protocol"] == proto
+
+    def test_multiplex_not_added_for_grpc(self):
+        node = ParsedNode(
+            protocol="vless", host="g.example.com", port=443,
+            uuid="u", security="tls", network="grpc", grpc_service="svc",
+        )
+        cfg = generate_config(node, self._mux_settings())
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_not_added_for_xhttp(self):
+        cfg = generate_config(make_vless_xhttp(), self._mux_settings())
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_not_added_for_shadowsocks(self):
+        cfg = generate_config(make_shadowsocks(), self._mux_settings())
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_absent_when_protocol_empty(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        assert "multiplex" not in cfg["outbounds"][0]
+
+    def test_multiplex_max_connections_default(self):
+        cfg = generate_config(make_vless_reality(), self._mux_settings())
+        assert cfg["outbounds"][0]["multiplex"]["max_connections"] == 4
+
+    def test_multiplex_max_connections_custom(self):
+        s = ConfigSettings(multiplex_protocol="h2mux", multiplex_max_connections=8)
+        cfg = generate_config(make_vless_reality(), s)
+        assert cfg["outbounds"][0]["multiplex"]["max_connections"] == 8
+
+    def test_multiplex_added_for_ws(self):
+        cfg = generate_config(make_vmess_ws(), self._mux_settings())
+        assert "multiplex" in cfg["outbounds"][0]
 
 
 class TestFlowExclusion:

@@ -108,6 +108,8 @@ class Daemon:
             ["/sbin/ip", "tuntap", "add", "mode", "tun", tun_if],
             ["/sbin/ip", "addr", "add", tun_addr, "dev", tun_if],
             ["/sbin/ip", "link", "set", tun_if, "up"],
+            # Larger TX queue reduces packet drops under bursty multi-device load.
+            ["/sbin/ip", "link", "set", tun_if, "txqueuelen", "1000"],
         ]
         for cmd in cmds:
             result = subprocess.run(cmd, capture_output=True)
