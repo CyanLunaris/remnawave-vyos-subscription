@@ -161,6 +161,8 @@ def validate_and_fix_config(config_path: str) -> dict:
         fixes["SPLIT_ROUTE"] = "true"
         if sr:
             log.warning("Config: SPLIT_ROUTE=%r is invalid — resetting to 'true'", sr)
+        else:
+            log.warning("Config: SPLIT_ROUTE missing — setting default 'true'")
 
     # Apply defaults for missing optional keys
     for key, default in _DEFAULTS.items():
