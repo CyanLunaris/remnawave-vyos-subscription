@@ -55,6 +55,15 @@ class TestDaemon:
         assert any("addr" in c for c in calls)
         assert any("link" in c for c in calls)
 
+    def test_setup_tun_uses_configurable_tx_queue(self, tmp_path):
+        d = self._make_daemon(tmp_path)
+        d.env["TUN_TX_QUEUE"] = "2048"
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            d.setup_tun()
+        calls = [str(c) for c in mock_run.call_args_list]
+        assert any("2048" in c for c in calls)
+
     def test_sing_box_restart_on_exit(self, tmp_path):
         d = self._make_daemon(tmp_path)
         restart_count = []
