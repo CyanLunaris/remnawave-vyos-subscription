@@ -10,7 +10,6 @@ import argparse
 import json
 import logging
 import os
-import subprocess
 import sys
 import urllib.error
 import urllib.request
@@ -95,6 +94,7 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
         multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
         multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
+        split_route=env.get("SPLIT_ROUTE", "true").lower() != "false",
     )
 
     config = generate_config(node, settings)
@@ -115,21 +115,37 @@ def _reload_sing_box() -> None:
         log.error("sing-box reload failed")
 
 
+def _setup_logging(log_dir: str) -> None:
+    """Add a file handler for this module's logger (idempotent).
+
+    Works whether called from daemon (root already configured) or standalone.
+    """
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+
+    if not any(
+        isinstance(h, logging.FileHandler) and h.baseFilename.endswith("heartbeat.log")
+        for h in log.handlers
+    ):
+        fh = logging.FileHandler(f"{log_dir}/heartbeat.log")
+        fh.setFormatter(fmt)
+        log.addHandler(fh)
+        log.setLevel(logging.INFO)
+
+    if not logging.root.handlers:
+        sh = logging.StreamHandler()
+        sh.setFormatter(fmt)
+        logging.root.addHandler(sh)
+        logging.root.setLevel(logging.INFO)
+
+
 def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     from src.sync import load_env
     env = load_env(config_path)
     env = {**os.environ, **env}
 
     log_dir = env.get("LOG_DIR", "/var/log/remnaproxy")
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(f"{log_dir}/heartbeat.log"),
-            logging.StreamHandler(),
-        ],
-    )
+    _setup_logging(log_dir)
 
     sm = StateManager(
         env.get("NODES_FILE", "/etc/remnaproxy/nodes.json"),

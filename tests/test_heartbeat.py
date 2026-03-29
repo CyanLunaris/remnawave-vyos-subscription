@@ -158,3 +158,34 @@ class TestHeartbeatCooldown:
             with patch.object(sm, "set_cooldown", wraps=sm.set_cooldown) as mock_set_cooldown:
                 run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5, cooldown=2)
         mock_set_cooldown.assert_called_with(0)
+
+
+def test_apply_new_node_respects_split_route_false(tmp_path):
+    """Config regenerated after node rotation must honour SPLIT_ROUTE=false."""
+    import json
+    from src.heartbeat import _apply_new_node
+    from src.state_manager import StateManager
+    from src.uri_parser import ParsedNode
+
+    config = tmp_path / "config.env"
+    config.write_text(
+        "SUBSCRIPTION_URL=https://example.com/sub/TOKEN\n"
+        "SPLIT_ROUTE=false\n"
+        f"NODES_FILE={tmp_path}/nodes.json\n"
+        f"STATE_FILE={tmp_path}/state.json\n"
+        f"XRAY_CONFIG={tmp_path}/config.json\n"
+    )
+    node = ParsedNode(
+        protocol="vless", host="nl1.example.com", port=443,
+        uuid="test-uuid", security="reality", network="tcp",
+        reality_pbk="KEY", reality_sid="abc", sni="microsoft.com",
+        fingerprint="chrome",
+    )
+    sm = StateManager(str(tmp_path / "nodes.json"), str(tmp_path / "state.json"))
+    sm.save_nodes([node])
+
+    with patch("src.tui_helpers.reload_sing_box", return_value=True):
+        _apply_new_node(sm, str(config))
+
+    written = json.loads((tmp_path / "config.json").read_text())
+    assert "rule_set" not in written["route"]
