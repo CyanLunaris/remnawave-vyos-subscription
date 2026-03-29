@@ -252,7 +252,6 @@ def _build_route(s: ConfigSettings) -> Dict[str, Any]:
         {"action": "sniff", "timeout": "300ms"},
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
-        {"ip_protocol": "icmp", "outbound": "direct"},
     ]
     non_private = [g for g in s.geo_direct_ip if g != "private"]
     if non_private:
