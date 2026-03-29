@@ -360,6 +360,79 @@ class TestFlowExclusion:
         assert "flow" not in cfg["outbounds"][0]
 
 
+class TestCustomRuleSets:
+    def _settings_with_custom(self) -> ConfigSettings:
+        return ConfigSettings(
+            tun_interface="tun0",
+            tun_address="172.19.0.1/30",
+            geo_direct_ip=["private", "ru"],
+            geo_direct_site=["category-ru"],
+            rule_set_dir="/etc/sing-box",
+            custom_direct_ip_rule_sets=[
+                ("antifilter-ip-community", "https://example.com/antifilter-ip-community.srs"),
+            ],
+            custom_direct_site_rule_sets=[
+                ("antifilter-community", "https://example.com/antifilter-community.srs"),
+            ],
+        )
+
+    def _direct_rule_set_tags(self, cfg) -> list:
+        return [
+            tag
+            for r in cfg["route"]["rules"]
+            if r.get("outbound") == "direct" and "rule_set" in r
+            for tag in r["rule_set"]
+        ]
+
+    def test_custom_ip_rule_set_in_routing(self):
+        cfg = generate_config(make_vless_reality(), self._settings_with_custom())
+        assert "antifilter-ip-community" in self._direct_rule_set_tags(cfg)
+
+    def test_custom_site_rule_set_in_routing(self):
+        cfg = generate_config(make_vless_reality(), self._settings_with_custom())
+        assert "antifilter-community" in self._direct_rule_set_tags(cfg)
+
+    def test_custom_site_rule_set_in_dns(self):
+        cfg = generate_config(make_vless_reality(), self._settings_with_custom())
+        dns_rule_set_tags = [
+            tag
+            for r in cfg["dns"]["rules"]
+            if "rule_set" in r
+            for tag in r["rule_set"]
+        ]
+        assert "antifilter-community" in dns_rule_set_tags
+
+    def test_custom_ip_rule_set_not_in_dns(self):
+        cfg = generate_config(make_vless_reality(), self._settings_with_custom())
+        dns_rule_set_tags = [
+            tag
+            for r in cfg["dns"]["rules"]
+            if "rule_set" in r
+            for tag in r["rule_set"]
+        ]
+        assert "antifilter-ip-community" not in dns_rule_set_tags
+
+    def test_custom_rule_set_definitions_in_route(self):
+        cfg = generate_config(make_vless_reality(), self._settings_with_custom())
+        tags = [rs["tag"] for rs in cfg["route"]["rule_set"]]
+        assert "antifilter-ip-community" in tags
+        assert "antifilter-community" in tags
+
+    def test_custom_rule_set_path_uses_tag(self):
+        cfg = generate_config(make_vless_reality(), self._settings_with_custom())
+        ip_rs = next(rs for rs in cfg["route"]["rule_set"] if rs["tag"] == "antifilter-ip-community")
+        site_rs = next(rs for rs in cfg["route"]["rule_set"] if rs["tag"] == "antifilter-community")
+        assert ip_rs["path"] == "/etc/sing-box/antifilter-ip-community.srs"
+        assert site_rs["path"] == "/etc/sing-box/antifilter-community.srs"
+        assert ip_rs["type"] == "local"
+        assert ip_rs["format"] == "binary"
+
+    def test_no_custom_rule_sets_by_default(self):
+        cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
+        tags = [rs["tag"] for rs in cfg["route"]["rule_set"]]
+        assert not any("antifilter" in t for t in tags)
+
+
 class TestShadowsocksOutbound:
     def test_outbound_type(self):
         cfg = generate_config(make_shadowsocks(), DEFAULT_SETTINGS)

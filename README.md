@@ -101,6 +101,8 @@ remnaproxy-tui
 | `HEARTBEAT_HOST` | `cp.cloudflare.com` | Хост для проверки связи |
 | `GEO_DIRECT_IP` | `private,ru` | GeoIP-коды прямого маршрута |
 | `GEO_DIRECT_SITE` | `category-ru` | GeoSite-коды прямого маршрута |
+| `RULE_SET_DIRECT_IP_URLS` | — | Кастомные IP rule-set файлы для прямого маршрута: `тег:https://url,...` |
+| `RULE_SET_DIRECT_SITE_URLS` | — | Кастомные domain rule-set файлы для прямого маршрута: `тег:https://url,...` |
 | `TUN_INTERFACE` | `tun0` | Имя TUN-интерфейса |
 | `TUN_ADDRESS` | `172.19.0.1/30` | Адрес TUN-интерфейса |
 | `RULE_SET_DIR` | `/etc/sing-box` | Директория для `.srs` rule-set файлов |
