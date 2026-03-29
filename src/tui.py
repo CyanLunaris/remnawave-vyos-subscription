@@ -158,7 +158,6 @@ EDITABLE_KEYS = [
     ("TUN_INTERFACE", "TUN interface"),
     ("TUN_ADDRESS", "TUN address CIDR"),
     ("TUN_STACK", "TUN stack: mixed/system/gvisor"),
-    ("TUN_GSO", "Enable GSO: true/false"),
     ("TUN_MTU", "TUN MTU (e.g. 1400)"),
     ("TUN_TX_QUEUE", "TUN txqueuelen (e.g. 1000)"),
     ("DNS_SERVER", "DNS server (IP/host or https://... DoH URL)"),

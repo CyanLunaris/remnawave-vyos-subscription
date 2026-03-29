@@ -30,9 +30,6 @@ class ConfigSettings:
     # TUN network stack: "mixed" (gvisor UDP + system TCP), "system", or "gvisor"
     # "mixed" is recommended for router use: kernel-optimised TCP + gvisor concurrent UDP
     tun_stack: str = "mixed"
-    # Enable Generic Segmentation Offload — batches small packets, reduces CPU per-packet.
-    # Requires kernel GSO support (standard on Linux 4.x+). Safe to enable on VyOS.
-    tun_gso: bool = False
     # Multiplex protocol for TCP-based outbounds: "smux", "yamux", "h2mux", or "" (disabled)
     # gRPC and xHTTP already have built-in multiplexing and are excluded automatically.
     multiplex_protocol: str = ""
@@ -87,8 +84,6 @@ def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
         "strict_route": False,
         "stack": s.tun_stack,
     }
-    if s.tun_gso:
-        inbound["gso"] = True
     return inbound
 
 

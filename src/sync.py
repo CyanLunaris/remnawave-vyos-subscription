@@ -39,12 +39,6 @@ def load_env(path: str) -> dict:
     return env
 
 
-def _env_bool(env: dict, key: str, default: bool = False) -> bool:
-    value = env.get(key)
-    if value is None:
-        return default
-    return str(value).strip().lower() in ("1", "true", "yes", "on")
-
 
 def _env_int(env: dict, key: str, default: int) -> int:
     raw = env.get(key)
@@ -78,7 +72,6 @@ def build_config_settings(env: dict) -> ConfigSettings:
         dns_server=env.get("DNS_SERVER", "1.1.1.1"),
         route_sniff_timeout=_env_duration(env, "ROUTE_SNIFF_TIMEOUT", "100ms"),
         tun_stack=env.get("TUN_STACK", "mixed"),
-        tun_gso=_env_bool(env, "TUN_GSO", default=False),
         tun_mtu=_env_int(env, "TUN_MTU", 1400),
         multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
         multiplex_max_connections=_env_int(env, "MULTIPLEX_MAX_CONNECTIONS", 4),

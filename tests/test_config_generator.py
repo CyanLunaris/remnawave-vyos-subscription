@@ -73,16 +73,10 @@ class TestConfigStructure:
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["stack"] == "gvisor"
 
-    def test_tun_gso_absent_by_default(self):
+    def test_tun_gso_not_emitted(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert "gso" not in tun
-
-    def test_tun_gso_present_when_enabled(self):
-        s = ConfigSettings(tun_gso=True)
-        cfg = generate_config(make_vless_reality(), s)
-        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
-        assert tun["gso"] is True
         assert "gso_max_size" not in tun
 
     def test_has_direct_outbound(self):
