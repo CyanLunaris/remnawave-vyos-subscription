@@ -90,7 +90,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
     # 1. Ensure binaries and geo files
     if kernel == "xray":
         _emit("Checking xray binaries...")
-        xray_bin = env.get("XRAY_BIN", "/usr/local/bin/xray")
+        xray_bin = env.get("XRAY_CORE_BIN", "/usr/local/bin/xray")
         tun2socks_bin = env.get("TUN2SOCKS_BIN", "/usr/local/bin/tun2socks")
         xray_dir = env.get("XRAY_GEO_DIR", "/etc/xray")
         ensure_xray(xray_bin)

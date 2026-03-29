@@ -236,7 +236,7 @@ class XrayRunner(_BaseRunner):
 def make_runner(kernel: str, env: dict) -> _BaseRunner:
     if kernel == "xray":
         return XrayRunner(
-            xray_binary=env.get("XRAY_BIN", "/usr/local/bin/xray"),
+            xray_binary=env.get("XRAY_CORE_BIN", "/usr/local/bin/xray"),
             xray_config=env.get("XRAY_CONFIG_FILE", "/etc/xray/xray-config.json"),
             tun2socks_binary=env.get("TUN2SOCKS_BIN", "/usr/local/bin/tun2socks"),
             tun_device=env.get("TUN_INTERFACE", "tun0"),
