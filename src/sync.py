@@ -90,6 +90,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
         custom_direct_ip_rule_sets=_parse_rule_set_urls(env.get("RULE_SET_DIRECT_IP_URLS", "")),
         custom_direct_site_rule_sets=_parse_rule_set_urls(env.get("RULE_SET_DIRECT_SITE_URLS", "")),
+        split_route=env.get("SPLIT_ROUTING", "true").lower() not in ("0", "false", "no"),
     )
 
     # 1. Ensure binaries/geo files are present, downloading if missing.
@@ -103,13 +104,14 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         return 1
 
     try:
-        ensure_rule_sets(
-            rule_set_dir,
-            settings.geo_direct_ip,
-            settings.geo_direct_site,
-            settings.custom_direct_ip_rule_sets,
-            settings.custom_direct_site_rule_sets,
-        )
+        if settings.split_route:
+            ensure_rule_sets(
+                rule_set_dir,
+                settings.geo_direct_ip,
+                settings.geo_direct_site,
+                settings.custom_direct_ip_rule_sets,
+                settings.custom_direct_site_rule_sets,
+            )
     except Exception as exc:
         # Rule set download failures are non-fatal: files may already exist on a
         # volume-mounted directory from a previous run.  sing-box will fail at

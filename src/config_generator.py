@@ -35,6 +35,8 @@ class ConfigSettings:
     custom_direct_ip_rule_sets: List[Tuple[str, str]] = field(default_factory=list)
     # Domain-based rule sets: used in both DNS and routing rules.
     custom_direct_site_rule_sets: List[Tuple[str, str]] = field(default_factory=list)
+    # When False all traffic is routed through the proxy (geo/custom direct rules are omitted).
+    split_route: bool = True
 
 
 def generate_config(node: ParsedNode, settings: ConfigSettings) -> Dict[str, Any]:
@@ -225,14 +227,15 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
 
 def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
     rules: List[Dict[str, Any]] = []
-    site_rule_sets: List[str] = [f"geosite-{code}" for code in s.geo_direct_site]
-    site_rule_sets += [tag for tag, _ in s.custom_direct_site_rule_sets]
-    if site_rule_sets:
-        rules.append({
-            "rule_set": site_rule_sets,
-            "action": "route",
-            "server": "local",
-        })
+    if s.split_route:
+        site_rule_sets: List[str] = [f"geosite-{code}" for code in s.geo_direct_site]
+        site_rule_sets += [tag for tag, _ in s.custom_direct_site_rule_sets]
+        if site_rule_sets:
+            rules.append({
+                "rule_set": site_rule_sets,
+                "action": "route",
+                "server": "local",
+            })
     return {
         "servers": [
             {
@@ -261,45 +264,46 @@ def _build_route(s: ConfigSettings) -> Dict[str, Any]:
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]
-    non_private = [g for g in s.geo_direct_ip if g != "private"]
-    if non_private:
-        rules.append({"rule_set": [f"geoip-{code}" for code in non_private], "outbound": "direct"})
-    if s.geo_direct_site:
-        rules.append({"rule_set": [f"geosite-{code}" for code in s.geo_direct_site], "outbound": "direct"})
-    if s.custom_direct_ip_rule_sets:
-        rules.append({"rule_set": [tag for tag, _ in s.custom_direct_ip_rule_sets], "outbound": "direct"})
-    if s.custom_direct_site_rule_sets:
-        rules.append({"rule_set": [tag for tag, _ in s.custom_direct_site_rule_sets], "outbound": "direct"})
-
     rule_set: List[Dict[str, Any]] = []
-    for code in non_private:
-        rule_set.append({
-            "tag": f"geoip-{code}",
-            "type": "local",
-            "format": "binary",
-            "path": f"{s.rule_set_dir}/geoip-{code}.srs",
-        })
-    for code in s.geo_direct_site:
-        rule_set.append({
-            "tag": f"geosite-{code}",
-            "type": "local",
-            "format": "binary",
-            "path": f"{s.rule_set_dir}/geosite-{code}.srs",
-        })
-    for tag, _ in s.custom_direct_ip_rule_sets:
-        rule_set.append({
-            "tag": tag,
-            "type": "local",
-            "format": "binary",
-            "path": f"{s.rule_set_dir}/{tag}.srs",
-        })
-    for tag, _ in s.custom_direct_site_rule_sets:
-        rule_set.append({
-            "tag": tag,
-            "type": "local",
-            "format": "binary",
-            "path": f"{s.rule_set_dir}/{tag}.srs",
-        })
+    if s.split_route:
+        non_private = [g for g in s.geo_direct_ip if g != "private"]
+        if non_private:
+            rules.append({"rule_set": [f"geoip-{code}" for code in non_private], "outbound": "direct"})
+        if s.geo_direct_site:
+            rules.append({"rule_set": [f"geosite-{code}" for code in s.geo_direct_site], "outbound": "direct"})
+        if s.custom_direct_ip_rule_sets:
+            rules.append({"rule_set": [tag for tag, _ in s.custom_direct_ip_rule_sets], "outbound": "direct"})
+        if s.custom_direct_site_rule_sets:
+            rules.append({"rule_set": [tag for tag, _ in s.custom_direct_site_rule_sets], "outbound": "direct"})
+
+        for code in non_private:
+            rule_set.append({
+                "tag": f"geoip-{code}",
+                "type": "local",
+                "format": "binary",
+                "path": f"{s.rule_set_dir}/geoip-{code}.srs",
+            })
+        for code in s.geo_direct_site:
+            rule_set.append({
+                "tag": f"geosite-{code}",
+                "type": "local",
+                "format": "binary",
+                "path": f"{s.rule_set_dir}/geosite-{code}.srs",
+            })
+        for tag, _ in s.custom_direct_ip_rule_sets:
+            rule_set.append({
+                "tag": tag,
+                "type": "local",
+                "format": "binary",
+                "path": f"{s.rule_set_dir}/{tag}.srs",
+            })
+        for tag, _ in s.custom_direct_site_rule_sets:
+            rule_set.append({
+                "tag": tag,
+                "type": "local",
+                "format": "binary",
+                "path": f"{s.rule_set_dir}/{tag}.srs",
+            })
 
     route: Dict[str, Any] = {
         "rules": rules,
