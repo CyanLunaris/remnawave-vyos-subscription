@@ -6,6 +6,9 @@ from unittest.mock import patch
 import pytest
 
 from src.sync import load_env
+
+pytest.importorskip("textual")
+
 from src.tui import KernelSwitchModal
 
 
