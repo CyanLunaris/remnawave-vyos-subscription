@@ -39,6 +39,41 @@ def load_env(path: str) -> dict:
     return env
 
 
+def _env_bool(env: dict, key: str, default: bool = False) -> bool:
+    value = env.get(key)
+    if value is None:
+        return default
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _env_int(env: dict, key: str, default: int) -> int:
+    raw = env.get(key)
+    if raw is None or str(raw).strip() == "":
+        return default
+    try:
+        return int(str(raw).strip())
+    except ValueError:
+        return default
+
+
+def build_config_settings(env: dict) -> ConfigSettings:
+    """Build ConfigSettings from merged environment variables."""
+    return ConfigSettings(
+        tun_interface=env.get("TUN_INTERFACE", "tun0"),
+        tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
+        geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
+        geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
+        rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
+        dns_server=env.get("DNS_SERVER", "1.1.1.1"),
+        route_sniff_timeout=env.get("ROUTE_SNIFF_TIMEOUT", "100ms"),
+        tun_stack=env.get("TUN_STACK", "mixed"),
+        tun_gso=_env_bool(env, "TUN_GSO", default=False),
+        tun_mtu=_env_int(env, "TUN_MTU", 1400),
+        multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
+        multiplex_max_connections=_env_int(env, "MULTIPLEX_MAX_CONNECTIONS", 4),
+    )
+
+
 def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     env = load_env(config_path)
     env = {**os.environ, **env}  # env file takes precedence
@@ -65,17 +100,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     state_file    = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
     rule_set_dir  = env.get("RULE_SET_DIR", "/etc/sing-box")
 
-    settings = ConfigSettings(
-        tun_interface=env.get("TUN_INTERFACE", "tun0"),
-        tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
-        geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
-        geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
-        rule_set_dir=rule_set_dir,
-        tun_stack=env.get("TUN_STACK", "mixed"),
-        tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
-        multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
-        multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
-    )
+    settings = build_config_settings({**env, "RULE_SET_DIR": rule_set_dir})
 
     sm = StateManager(nodes_file, state_file)
 

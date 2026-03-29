@@ -6,6 +6,7 @@ Targets sing-box 1.12+ (rule-set API; geoip/geosite removed in 1.12.0).
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 from .uri_parser import ParsedNode
 
@@ -17,7 +18,15 @@ class ConfigSettings:
     geo_direct_ip: List[str] = field(default_factory=lambda: ["private", "ru"])
     geo_direct_site: List[str] = field(default_factory=lambda: ["category-ru"])
     rule_set_dir: str = "/etc/sing-box"
-    dns_server: str = "8.8.8.8"
+    # DNS upstream.
+    # - Plain IP/host => UDP DNS (fastest, no TLS handshake overhead)
+    # - https://...  => DNS-over-HTTPS
+    dns_server: str = "1.1.1.1"
+    # Timeout for route sniffing. Keep low to avoid delaying TLS handshakes
+    # on clients that do not provide sniffable payload immediately.
+    route_sniff_timeout: str = "100ms"
+    # TUN MTU. Lower values can help with PMTU blackholes; higher can reduce overhead.
+    tun_mtu: int = 1400
     # TUN network stack: "mixed" (gvisor UDP + system TCP), "system", or "gvisor"
     # "mixed" is recommended for router use: kernel-optimised TCP + gvisor concurrent UDP
     tun_stack: str = "mixed"
@@ -73,7 +82,7 @@ def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
         "tag": "tun-in",
         "interface_name": s.tun_interface,
         "address": [s.tun_address],
-        "mtu": 1400,
+        "mtu": s.tun_mtu,
         "auto_route": False,
         "strict_route": False,
         "stack": s.tun_stack,
@@ -225,14 +234,24 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
             "action": "route",
             "server": "local",
         })
+    remote_server: Dict[str, Any] = {
+        "tag": "remote",
+        "detour": "proxy",
+    }
+    dns_server = s.dns_server.strip()
+    if dns_server.startswith("https://"):
+        parsed = urlparse(dns_server)
+        remote_server["type"] = "https"
+        remote_server["server"] = parsed.hostname or "1.1.1.1"
+        if parsed.path and parsed.path != "/":
+            remote_server["path"] = parsed.path
+    else:
+        remote_server["type"] = "udp"
+        remote_server["server"] = dns_server
+
     return {
         "servers": [
-            {
-                "tag": "remote",
-                "type": "https",
-                "server": s.dns_server,
-                "detour": "proxy",
-            },
+            remote_server,
             {
                 "tag": "local",
                 "type": "local",
@@ -247,9 +266,9 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
 
 def _build_route(s: ConfigSettings) -> Dict[str, Any]:
     rules: List[Dict[str, Any]] = [
-        # 300 ms sniff timeout prevents blocking connections from devices that
-        # do not immediately send recognisable protocol data (IoT, game consoles).
-        {"action": "sniff", "timeout": "300ms"},
+        # Sniff timeout should stay low to avoid delaying connection setup on
+        # clients that do not immediately send recognisable protocol data.
+        {"action": "sniff", "timeout": s.route_sniff_timeout},
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]
