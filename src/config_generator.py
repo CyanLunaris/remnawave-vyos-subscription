@@ -29,6 +29,7 @@ class ConfigSettings:
     multiplex_protocol: str = ""
     # Max VPN connections in the multiplex pool. Increase for more concurrent devices.
     multiplex_max_connections: int = 4
+    split_route: bool = True
 
 
 def generate_config(node: ParsedNode, settings: ConfigSettings) -> Dict[str, Any]:
@@ -80,7 +81,6 @@ def _build_tun_inbound(s: ConfigSettings) -> Dict[str, Any]:
     }
     if s.tun_gso:
         inbound["gso"] = True
-        inbound["gso_max_size"] = 65536
     return inbound
 
 
@@ -219,7 +219,7 @@ def _build_transport(node: ParsedNode) -> Dict[str, Any]:
 
 def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
     rules: List[Dict[str, Any]] = []
-    if s.geo_direct_site:
+    if s.split_route and s.geo_direct_site:
         rules.append({
             "rule_set": [f"geosite-{code}" for code in s.geo_direct_site],
             "action": "route",
@@ -229,13 +229,18 @@ def _build_dns(s: ConfigSettings) -> Dict[str, Any]:
         "servers": [
             {
                 "tag": "remote",
-                "type": "https",
+                # UDP DNS via the proxy tunnel — traffic is already encrypted by the proxy,
+                # DoH would add a redundant TLS layer and double the DNS latency.
+                "type": "udp",
                 "server": s.dns_server,
                 "detour": "proxy",
+                # Prefer IPv4 to avoid slow AAAA timeout on networks without IPv6.
+                "strategy": "prefer_ipv4",
             },
             {
                 "tag": "local",
                 "type": "local",
+                "strategy": "prefer_ipv4",
             },
         ],
         "rules": rules,
@@ -253,27 +258,30 @@ def _build_route(s: ConfigSettings) -> Dict[str, Any]:
         {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"},
     ]
-    non_private = [g for g in s.geo_direct_ip if g != "private"]
-    if non_private:
-        rules.append({"rule_set": [f"geoip-{code}" for code in non_private], "outbound": "direct"})
-    if s.geo_direct_site:
-        rules.append({"rule_set": [f"geosite-{code}" for code in s.geo_direct_site], "outbound": "direct"})
 
     rule_set: List[Dict[str, Any]] = []
-    for code in non_private:
-        rule_set.append({
-            "tag": f"geoip-{code}",
-            "type": "local",
-            "format": "binary",
-            "path": f"{s.rule_set_dir}/geoip-{code}.srs",
-        })
-    for code in s.geo_direct_site:
-        rule_set.append({
-            "tag": f"geosite-{code}",
-            "type": "local",
-            "format": "binary",
-            "path": f"{s.rule_set_dir}/geosite-{code}.srs",
-        })
+
+    if s.split_route:
+        non_private = [g for g in s.geo_direct_ip if g != "private"]
+        if non_private:
+            rules.append({"rule_set": [f"geoip-{code}" for code in non_private], "outbound": "direct"})
+        if s.geo_direct_site:
+            rules.append({"rule_set": [f"geosite-{code}" for code in s.geo_direct_site], "outbound": "direct"})
+
+        for code in non_private:
+            rule_set.append({
+                "tag": f"geoip-{code}",
+                "type": "local",
+                "format": "binary",
+                "path": f"{s.rule_set_dir}/geoip-{code}.srs",
+            })
+        for code in s.geo_direct_site:
+            rule_set.append({
+                "tag": f"geosite-{code}",
+                "type": "local",
+                "format": "binary",
+                "path": f"{s.rule_set_dir}/geosite-{code}.srs",
+            })
 
     route: Dict[str, Any] = {
         "rules": rules,

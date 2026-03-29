@@ -78,7 +78,7 @@ class TestConfigStructure:
         cfg = generate_config(make_vless_reality(), s)
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["gso"] is True
-        assert tun["gso_max_size"] == 65536
+        assert "gso_max_size" not in tun  # field does not exist in sing-box API
 
     def test_has_direct_outbound(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -214,8 +214,9 @@ class TestDns:
     def test_remote_server_uses_type_field(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         remote = next(s for s in cfg["dns"]["servers"] if s["tag"] == "remote")
-        assert remote["type"] == "https"
-        assert "address" not in remote
+        # UDP DNS via proxy — no redundant TLS layer on top of the already-encrypted tunnel
+        assert remote["type"] == "udp"
+        assert remote.get("strategy") == "prefer_ipv4"
 
     def test_remote_server_field(self):
         s = ConfigSettings(dns_server="8.8.8.8")
@@ -441,3 +442,63 @@ class TestXhttpTransport:
         )
         cfg = generate_config(node, DEFAULT_SETTINGS)
         assert cfg["outbounds"][0]["transport"]["method"] == "POST"
+
+
+class TestSplitRoute:
+    def test_split_route_true_keeps_geo_rules(self):
+        s = ConfigSettings(
+            geo_direct_ip=["private", "ru"],
+            geo_direct_site=["category-ru"],
+            split_route=True,
+        )
+        cfg = generate_config(make_vless_reality(), s)
+        rule_set_tags = [rs["tag"] for rs in cfg["route"].get("rule_set", [])]
+        assert any("geoip" in t for t in rule_set_tags)
+        assert any("geosite" in t for t in rule_set_tags)
+
+    def test_split_route_false_removes_geo_route_rules(self):
+        s = ConfigSettings(
+            geo_direct_ip=["private", "ru"],
+            geo_direct_site=["category-ru"],
+            split_route=False,
+        )
+        cfg = generate_config(make_vless_reality(), s)
+        # No rule_set section in route
+        assert "rule_set" not in cfg["route"]
+        # No geoip/geosite outbound rules (only sniff, dns, private remain)
+        outbound_rules = [
+            r for r in cfg["route"]["rules"]
+            if r.get("outbound") == "direct" and "rule_set" in r
+        ]
+        assert outbound_rules == []
+
+    def test_split_route_false_removes_dns_geo_rule(self):
+        s = ConfigSettings(
+            geo_direct_site=["category-ru"],
+            split_route=False,
+        )
+        cfg = generate_config(make_vless_reality(), s)
+        dns_rules = cfg["dns"]["rules"]
+        geo_rules = [r for r in dns_rules if "rule_set" in r]
+        assert geo_rules == []
+
+    def test_split_route_false_keeps_private_direct(self):
+        s = ConfigSettings(split_route=False)
+        cfg = generate_config(make_vless_reality(), s)
+        private_rule = next(
+            (r for r in cfg["route"]["rules"] if r.get("ip_is_private")),
+            None,
+        )
+        assert private_rule is not None
+        assert private_rule["outbound"] == "direct"
+
+    def test_split_route_false_keeps_sniff_and_dns_hijack(self):
+        s = ConfigSettings(split_route=False)
+        cfg = generate_config(make_vless_reality(), s)
+        actions = [r.get("action") for r in cfg["route"]["rules"]]
+        assert "sniff" in actions
+        assert "hijack-dns" in actions
+
+    def test_split_route_defaults_to_true(self):
+        s = ConfigSettings()
+        assert s.split_route is True
