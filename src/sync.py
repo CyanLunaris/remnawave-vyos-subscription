@@ -18,6 +18,7 @@ from pathlib import Path
 # Allow running directly as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.binary_manager import ensure_sing_box, ensure_rule_sets
 from src.config_generator import ConfigSettings, generate_config
 from src.state_manager import StateManager
 from src.subscription import fetch_subscription
@@ -79,10 +80,20 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
 
     sm = StateManager(nodes_file, state_file)
 
-    # 1. Verify binaries/geo files are present (setup is handled by install.sh)
-    if not os.path.isfile(sing_box_bin) or not os.access(sing_box_bin, os.X_OK):
-        log.error("sing-box binary not found or not executable: %s — run install.sh", sing_box_bin)
+    # 1. Ensure binaries/geo files are present, downloading if missing
+    try:
+        ensure_sing_box(sing_box_bin)
+    except Exception as exc:
+        log.error("Failed to ensure sing-box binary: %s", exc)
         return 1
+
+    try:
+        ensure_rule_sets(rule_set_dir, settings.geo_direct_ip, settings.geo_direct_site)
+    except Exception as exc:
+        # Rule set download failures are non-fatal: files may already exist on a
+        # volume-mounted directory from a previous run.  sing-box will fail at
+        # startup if the files are truly absent, giving a clear error at that point.
+        log.warning("Failed to ensure geo rule sets: %s", exc)
 
     # 2. Fetch subscription
     try:
