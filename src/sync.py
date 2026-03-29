@@ -55,11 +55,6 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         ],
     )
 
-    subscription_url = env.get("SUBSCRIPTION_URL", "")
-    if not subscription_url:
-        log.error("SUBSCRIPTION_URL not set in %s", config_path)
-        return 1
-
     sing_box_bin  = env.get("XRAY_BIN", "/usr/local/bin/sing-box")
     xray_config   = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
     nodes_file    = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
@@ -78,9 +73,10 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
     )
 
-    sm = StateManager(nodes_file, state_file)
-
-    # 1. Ensure binaries/geo files are present, downloading if missing
+    # 1. Ensure binaries/geo files are present, downloading if missing.
+    # This runs unconditionally so that `install.sh` (and container restarts after
+    # an image update) always get a working binary even before SUBSCRIPTION_URL
+    # has been configured.
     try:
         ensure_sing_box(sing_box_bin)
     except Exception as exc:
@@ -95,7 +91,15 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         # startup if the files are truly absent, giving a clear error at that point.
         log.warning("Failed to ensure geo rule sets: %s", exc)
 
-    # 2. Fetch subscription
+    # 2. Subscription URL is required for the rest of the sync
+    subscription_url = env.get("SUBSCRIPTION_URL", "")
+    if not subscription_url:
+        log.error("SUBSCRIPTION_URL not set in %s", config_path)
+        return 1
+
+    sm = StateManager(nodes_file, state_file)
+
+    # 3. Fetch subscription
     try:
         nodes = fetch_subscription(subscription_url)
         log.info("Fetched %d nodes from subscription", len(nodes))
@@ -110,14 +114,14 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         log.error("Subscription returned 0 nodes")
         return 1
 
-    # 3. Update nodes cache (reset index if node count changed)
+    # 4. Update nodes cache (reset index if node count changed)
     old_nodes = sm.load_nodes()
     sm.save_nodes(nodes)
     if len(nodes) != len(old_nodes):
         sm.set_current_index(0)
         log.info("Node list changed (%d → %d), reset to node 0", len(old_nodes), len(nodes))
 
-    # 4. Generate config for current node
+    # 5. Generate config for current node
     current_node = sm.get_current_node()
     if current_node is None:
         log.error("No current node")
@@ -127,7 +131,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     config = generate_config(current_node, settings)
     config_json = json.dumps(config, indent=2)
 
-    # 5. Compare with existing config — only restart if changed
+    # 6. Compare with existing config — only restart if changed
     config_path_obj = Path(xray_config)
     config_path_obj.parent.mkdir(parents=True, exist_ok=True)
 
@@ -141,7 +145,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     config_path_obj.write_text(config_json)
     log.info("Config written to %s", xray_config)
 
-    # 6. Reload/start sing-box
+    # 7. Reload/start sing-box
     _reload_sing_box()
     return 0
 

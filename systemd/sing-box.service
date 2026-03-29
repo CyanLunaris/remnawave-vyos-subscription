@@ -7,8 +7,11 @@ Documentation=https://sing-box.sagernet.org
 [Service]
 Type=simple
 User=root
-ExecStartPre=/usr/local/bin/sing-box check -c /etc/sing-box/config.json
-ExecStart=/usr/local/bin/sing-box run -c /etc/sing-box/config.json
+EnvironmentFile=-/etc/remnaproxy/config.env
+Environment=XRAY_BIN=/usr/local/bin/sing-box
+Environment=XRAY_CONFIG=/etc/sing-box/config.json
+ExecStartPre=$XRAY_BIN check -c $XRAY_CONFIG
+ExecStart=$XRAY_BIN run -c $XRAY_CONFIG
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5s

@@ -36,9 +36,10 @@ cp systemd/remnaproxy-heartbeat.timer /etc/systemd/system/
 
 systemctl daemon-reload
 
-# 5. Run first sync (downloads sing-box + geo files)
+# 5. Run first sync (downloads sing-box + geo files; generates config if SUBSCRIPTION_URL is set)
 echo "Running initial sync (this may take a minute — downloading sing-box)..."
-python3 "$INSTALL_LIB/sync.py" --config "$CONFIG_DIR/config.env"
+python3 "$INSTALL_LIB/sync.py" --config "$CONFIG_DIR/config.env" \
+    || echo "Note: initial sync finished with errors. Check /var/log/remnaproxy/sync.log for details. If SUBSCRIPTION_URL is not set, edit $CONFIG_DIR/config.env then re-run: python3 $INSTALL_LIB/sync.py"
 
 # 6. Set up TUN interface
 TUN_IF=$(grep TUN_INTERFACE "$CONFIG_DIR/config.env" | cut -d= -f2 | tr -d ' ' || echo "tun0")
