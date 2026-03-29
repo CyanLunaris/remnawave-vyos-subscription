@@ -117,3 +117,12 @@ def reload_sing_box() -> bool:
         capture_output=True,
     )
     return result.returncode == 0
+
+
+def reload_proxy(kernel: str) -> bool:
+    """Reload the active proxy kernel. Returns True on success."""
+    if kernel == "xray":
+        # xray has no hot-reload; kill it so the daemon restarts it with the new config
+        result = subprocess.run(["pkill", "xray"], capture_output=True)
+        return result.returncode == 0
+    return reload_sing_box()

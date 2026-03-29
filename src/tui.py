@@ -32,10 +32,11 @@ except ImportError:
 
 from src.tui_helpers import (
     get_status, read_config, write_config,
-    get_last_log_line, reload_sing_box,
+    get_last_log_line, reload_proxy,
 )
 from src.state_manager import StateManager
 from src.config_generator import ConfigSettings, generate_config
+from src.xray_config_generator import generate_xray_config
 from src.sync import load_env
 import json
 
@@ -112,7 +113,6 @@ class NodesScreen(Screen):
         env = load_env(config_path)
         self._nodes_file = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
         self._state_file = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
-        self._xray_config = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
         self._sm = StateManager(self._nodes_file, self._state_file)
 
     def compose(self) -> ComposeResult:
@@ -147,6 +147,7 @@ class NodesScreen(Screen):
         node = self._sm.get_current_node()
         if node:
             env = load_env(self.config_path)
+            kernel = env.get("PROXY_KERNEL", "singbox")
             settings = ConfigSettings(
                 tun_interface=env.get("TUN_INTERFACE", "tun0"),
                 tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
@@ -154,10 +155,15 @@ class NodesScreen(Screen):
                 geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
                 rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
             )
-            config = generate_config(node, settings)
-            Path(self._xray_config).parent.mkdir(parents=True, exist_ok=True)
-            Path(self._xray_config).write_text(json.dumps(config, indent=2))
-            reload_sing_box()
+            if kernel == "xray":
+                config = generate_xray_config(node, settings)
+                config_file = env.get("XRAY_CONFIG_FILE", "/etc/xray/xray-config.json")
+            else:
+                config = generate_config(node, settings)
+                config_file = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
+            Path(config_file).parent.mkdir(parents=True, exist_ok=True)
+            Path(config_file).write_text(json.dumps(config, indent=2))
+            reload_proxy(kernel)
             self.notify(f"Switched to {node.name}", severity="information")
 
         self.app.pop_screen()
