@@ -22,7 +22,7 @@ try:
     from textual.screen import Screen
     from textual.widgets import (
         Button, DataTable, Footer, Header, Input, Label,
-        Static, TabbedContent, TabPane,
+        Select, Static, TabbedContent, TabPane,
     )
     from textual.reactive import reactive
 except ImportError:
@@ -138,6 +138,7 @@ class NodesScreen(Screen):
                 geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
                 geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
                 rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
+                split_route=env.get("SPLIT_ROUTE", "true").lower() != "false",
             )
             config = generate_config(node, settings)
             Path(self._xray_config).parent.mkdir(parents=True, exist_ok=True)
@@ -151,12 +152,13 @@ class NodesScreen(Screen):
 # ── Config Screen ─────────────────────────────────────────────────────────────
 
 EDITABLE_KEYS = [
-    ("SUBSCRIPTION_URL", "Subscription URL (sub-link)"),
-    ("SYNC_INTERVAL", "Sync interval (e.g. 10min)"),
-    ("HEARTBEAT_INTERVAL", "Heartbeat interval (e.g. 30s)"),
-    ("HEARTBEAT_FAIL_THRESHOLD", "Fail threshold (number)"),
-    ("GEO_DIRECT_IP", "Direct GeoIP (e.g. private,ru)"),
-    ("GEO_DIRECT_SITE", "Direct GeoSite (e.g. ru)"),
+    ("SUBSCRIPTION_URL", "Subscription URL (sub-link)", "input"),
+    ("SYNC_INTERVAL", "Sync interval (e.g. 10min)", "input"),
+    ("HEARTBEAT_INTERVAL", "Heartbeat interval (e.g. 30s)", "input"),
+    ("HEARTBEAT_FAIL_THRESHOLD", "Fail threshold (number)", "input"),
+    ("GEO_DIRECT_IP", "Direct GeoIP (e.g. private,ru)", "input"),
+    ("GEO_DIRECT_SITE", "Direct GeoSite (e.g. ru)", "input"),
+    ("SPLIT_ROUTE", "Split routing (geo direct rules)", "select"),
 ]
 
 
@@ -174,9 +176,18 @@ class ConfigScreen(Screen):
         cfg = read_config(self.config_path)
         yield Header(show_clock=False)
         with Vertical():
-            for key, label in EDITABLE_KEYS:
+            for key, label, widget_type in EDITABLE_KEYS:
                 yield Label(label)
-                yield Input(value=cfg.get(key, ""), id=f"input-{key}")
+                if widget_type == "select":
+                    current = cfg.get(key, "true")
+                    options = [("Enabled (true)", "true"), ("Disabled (false)", "false")]
+                    yield Select(
+                        options,
+                        value=current if current in ("true", "false") else "true",
+                        id=f"input-{key}",
+                    )
+                else:
+                    yield Input(value=cfg.get(key, ""), id=f"input-{key}")
             yield Horizontal(
                 Button("Save & Sync", variant="success", id="btn-save"),
                 Button("Cancel", id="btn-cancel"),
@@ -185,9 +196,13 @@ class ConfigScreen(Screen):
 
     def action_save(self) -> None:
         updates = {}
-        for key, _ in EDITABLE_KEYS:
-            inp = self.query_one(f"#input-{key}", Input)
-            updates[key] = inp.value.strip()
+        for key, _, widget_type in EDITABLE_KEYS:
+            if widget_type == "select":
+                sel = self.query_one(f"#input-{key}", Select)
+                updates[key] = str(sel.value)
+            else:
+                inp = self.query_one(f"#input-{key}", Input)
+                updates[key] = inp.value.strip()
         write_config(self.config_path, updates)
         # Trigger sync in background
         subprocess.Popen([
