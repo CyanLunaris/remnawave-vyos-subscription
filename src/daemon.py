@@ -211,6 +211,9 @@ class XrayRunner(_BaseRunner):
         ret = proc.wait()
         if self._stop_event.is_set():
             return
+        # Guard against stale watch threads after a restart replaced the process.
+        if proc is not self._xray_proc and proc is not self._tun2socks_proc:
+            return
         log.warning("%s exited unexpectedly (code %d)", name, ret)
         self._on_crash()
 
