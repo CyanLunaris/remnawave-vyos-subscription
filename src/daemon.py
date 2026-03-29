@@ -211,6 +211,9 @@ class XrayRunner(_BaseRunner):
         ret = proc.wait()
         if self._stop_event.is_set():
             return
+        # Guard against stale watch threads after a restart replaced the process.
+        if proc is not self._xray_proc and proc is not self._tun2socks_proc:
+            return
         log.warning("%s exited unexpectedly (code %d)", name, ret)
         self._on_crash()
 
@@ -236,7 +239,7 @@ class XrayRunner(_BaseRunner):
 def make_runner(kernel: str, env: dict) -> _BaseRunner:
     if kernel == "xray":
         return XrayRunner(
-            xray_binary=env.get("XRAY_BIN", "/usr/local/bin/xray"),
+            xray_binary=env.get("XRAY_CORE_BIN", "/usr/local/bin/xray"),
             xray_config=env.get("XRAY_CONFIG_FILE", "/etc/xray/xray-config.json"),
             tun2socks_binary=env.get("TUN2SOCKS_BIN", "/usr/local/bin/tun2socks"),
             tun_device=env.get("TUN_INTERFACE", "tun0"),
