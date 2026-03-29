@@ -105,6 +105,7 @@ remnaproxy-tui
 | `TUN_ADDRESS` | `172.19.0.1/30` | Адрес TUN-интерфейса |
 | `TUN_MTU` | `1400` | MTU TUN-интерфейса (тюнинг фрагментации/latency) |
 | `TUN_TX_QUEUE` | `1000` | Размер txqueuelen для TUN (снижает дропы при burst-нагрузке) |
+| `TUN_GSO` | — | **Не поддерживается** в sing-box `1.12+` (опция удалена upstream) |
 | `DNS_SERVER` | `1.1.1.1` | DNS upstream для sing-box (`IP/host` = UDP DNS, `https://...` = DoH) |
 | `ROUTE_SNIFF_TIMEOUT` | `100ms` | Таймаут sniff-правила (меньше = быстрее TLS/HTTP рукопожатия) |
 | `RULE_SET_DIR` | `/etc/sing-box` | Директория для `.srs` rule-set файлов |
