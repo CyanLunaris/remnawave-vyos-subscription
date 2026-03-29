@@ -247,10 +247,11 @@ class KernelSwitchModal(ModalScreen):
     #modal-close  { margin-top: 1; display: none; }
     """
 
-    def __init__(self, daemon, new_kernel: str, **kwargs):
+    def __init__(self, daemon, new_kernel: str, config_path: str, **kwargs):
         super().__init__(**kwargs)
         self._daemon = daemon
         self._new_kernel = new_kernel
+        self._config_path = config_path
 
     def compose(self) -> ComposeResult:
         with Vertical():
@@ -267,10 +268,29 @@ class KernelSwitchModal(ModalScreen):
             self.call_from_thread(self._append_log, line)
 
         try:
-            self._daemon.restart_kernel(self._new_kernel, log_callback=append)
+            if self._daemon is not None:
+                self._daemon.restart_kernel(self._new_kernel, log_callback=append)
+            else:
+                self._do_switch_standalone(append)
             self.call_from_thread(self._on_success)
         except Exception as exc:
             self.call_from_thread(self._on_failure, str(exc))
+
+    def _do_switch_standalone(self, log_callback) -> None:
+        """Switch kernel when TUI runs via podman exec (no live daemon reference)."""
+        import os
+        import signal as _signal
+        from src.daemon import _write_proxy_kernel
+        from src.sync import main as sync_main
+
+        log_callback(f"Writing PROXY_KERNEL={self._new_kernel} to config...")
+        _write_proxy_kernel(self._config_path, self._new_kernel)
+
+        log_callback("Running sync for new kernel (may download binaries)...")
+        sync_main(self._config_path, log_callback=log_callback)
+
+        log_callback("Restarting daemon — container will restart with new kernel...")
+        os.kill(1, _signal.SIGTERM)
 
     def _append_log(self, line: str) -> None:
         log_widget = self.query_one("#modal-log", Static)
@@ -329,7 +349,7 @@ class SettingsScreen(Screen):
         current = load_env(self.config_path).get("PROXY_KERNEL", "singbox")
         if kernel == current:
             return
-        self.app.push_screen(KernelSwitchModal(self._daemon, kernel))
+        self.app.push_screen(KernelSwitchModal(self._daemon, kernel, self.config_path))
 
 
 # ── Main App ──────────────────────────────────────────────────────────────────
