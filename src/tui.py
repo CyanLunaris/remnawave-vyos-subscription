@@ -11,7 +11,6 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
-import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -20,7 +19,7 @@ try:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
     from textual.containers import Container, Horizontal, Vertical
-    from textual.screen import Screen, ModalScreen
+    from textual.screen import Screen
     from textual.widgets import (
         Button, DataTable, Footer, Header, Input, Label,
         Static, TabbedContent, TabPane,
@@ -32,11 +31,10 @@ except ImportError:
 
 from src.tui_helpers import (
     get_status, read_config, write_config,
-    get_last_log_line, reload_proxy,
+    get_last_log_line, reload_sing_box,
 )
 from src.state_manager import StateManager
 from src.config_generator import ConfigSettings, generate_config
-from src.xray_config_generator import generate_xray_config
 from src.sync import load_env
 import json
 
@@ -52,15 +50,8 @@ STATUS_CSS = """
 """
 
 
-def _read_xray_version() -> str:
-    try:
-        return Path("/etc/xray/.version").read_text().strip()
-    except Exception:
-        return "?.?.?"
-
-
 class StatusPanel(Static):
-    """Shows proxy status, current node, kernel version."""
+    """Shows sing-box status, current node, fail count."""
 
     DEFAULT_CSS = STATUS_CSS
 
@@ -71,7 +62,6 @@ class StatusPanel(Static):
         self._nodes_file = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
         self._state_file = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
         self._log_dir = env.get("LOG_DIR", "/var/log/remnaproxy")
-        self._kernel = env.get("PROXY_KERNEL", "singbox")
 
     def compose(self) -> ComposeResult:
         st = get_status(self._nodes_file, self._state_file)
@@ -80,13 +70,6 @@ class StatusPanel(Static):
         fail = st["fail_count"]
         fail_class = "value-err" if fail >= 2 else ("value-warn" if fail > 0 else "value")
 
-        if self._kernel == "xray":
-            ver = _read_xray_version()
-            kernel_str = f"xray v{ver}"
-        else:
-            kernel_str = "sing-box"
-
-        yield Label(f"Kernel       : {kernel_str}", classes="status-row value")
         yield Label(f"Current node : {st['current_node_name']}  "
                     f"({st['current_node_host']}:{st['current_node_port']})",
                     classes="status-row value")
@@ -113,6 +96,7 @@ class NodesScreen(Screen):
         env = load_env(config_path)
         self._nodes_file = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
         self._state_file = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
+        self._xray_config = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
         self._sm = StateManager(self._nodes_file, self._state_file)
 
     def compose(self) -> ComposeResult:
@@ -144,10 +128,10 @@ class NodesScreen(Screen):
         self._sm.set_current_index(idx)
         self._sm.reset_fail_count()
 
+        # Regenerate config
         node = self._sm.get_current_node()
         if node:
             env = load_env(self.config_path)
-            kernel = env.get("PROXY_KERNEL", "singbox")
             settings = ConfigSettings(
                 tun_interface=env.get("TUN_INTERFACE", "tun0"),
                 tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
@@ -155,15 +139,10 @@ class NodesScreen(Screen):
                 geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
                 rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
             )
-            if kernel == "xray":
-                config = generate_xray_config(node, settings)
-                config_file = env.get("XRAY_CONFIG_FILE", "/etc/xray/xray-config.json")
-            else:
-                config = generate_config(node, settings)
-                config_file = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
-            Path(config_file).parent.mkdir(parents=True, exist_ok=True)
-            Path(config_file).write_text(json.dumps(config, indent=2))
-            reload_proxy(kernel)
+            config = generate_config(node, settings)
+            Path(self._xray_config).parent.mkdir(parents=True, exist_ok=True)
+            Path(self._xray_config).write_text(json.dumps(config, indent=2))
+            reload_sing_box()
             self.notify(f"Switched to {node.name}", severity="information")
 
         self.app.pop_screen()
@@ -210,6 +189,7 @@ class ConfigScreen(Screen):
             inp = self.query_one(f"#input-{key}", Input)
             updates[key] = inp.value.strip()
         write_config(self.config_path, updates)
+        # Trigger sync in background
         subprocess.Popen([
             sys.executable,
             str(Path(__file__).parent / "sync.py"),
@@ -223,137 +203,6 @@ class ConfigScreen(Screen):
             self.action_save()
         elif event.button.id == "btn-cancel":
             self.app.pop_screen()
-
-
-# ── Kernel Switch Modal ───────────────────────────────────────────────────────
-
-class KernelSwitchModal(ModalScreen):
-    """Non-closeable progress modal for kernel switching."""
-
-    DEFAULT_CSS = """
-    KernelSwitchModal {
-        align: center middle;
-    }
-    KernelSwitchModal > Vertical {
-        width: 60;
-        height: auto;
-        padding: 1 2;
-        border: solid $primary;
-        background: $surface;
-    }
-    #modal-title  { text-style: bold; margin-bottom: 1; }
-    #modal-log    { height: 10; overflow-y: auto; }
-    #modal-status { margin-top: 1; }
-    #modal-close  { margin-top: 1; display: none; }
-    """
-
-    def __init__(self, daemon, new_kernel: str, config_path: str, **kwargs):
-        super().__init__(**kwargs)
-        self._daemon = daemon
-        self._new_kernel = new_kernel
-        self._config_path = config_path
-
-    def compose(self) -> ComposeResult:
-        with Vertical():
-            yield Label(f"Switching to {self._new_kernel}...", id="modal-title")
-            yield Static("", id="modal-log")
-            yield Label("", id="modal-status")
-            yield Button("Close", id="modal-close")
-
-    def on_mount(self) -> None:
-        threading.Thread(target=self._do_switch, daemon=True).start()
-
-    def _do_switch(self) -> None:
-        def append(line: str) -> None:
-            self.call_from_thread(self._append_log, line)
-
-        try:
-            if self._daemon is not None:
-                self._daemon.restart_kernel(self._new_kernel, log_callback=append)
-            else:
-                self._do_switch_standalone(append)
-            self.call_from_thread(self._on_success)
-        except Exception as exc:
-            self.call_from_thread(self._on_failure, str(exc))
-
-    def _do_switch_standalone(self, log_callback) -> None:
-        """Switch kernel when TUI runs via podman exec (no live daemon reference)."""
-        import os
-        import signal as _signal
-        from src.daemon import _write_proxy_kernel
-        from src.sync import load_env
-
-        old_kernel = load_env(self._config_path).get("PROXY_KERNEL", "singbox")
-
-        log_callback(f"Writing PROXY_KERNEL={self._new_kernel} to config...")
-        _write_proxy_kernel(self._config_path, self._new_kernel)
-
-        log_callback("Restarting daemon — it will run sync on startup...")
-        try:
-            os.kill(1, _signal.SIGTERM)
-        except Exception:
-            log_callback(f"Restart failed — reverting PROXY_KERNEL to {old_kernel}")
-            _write_proxy_kernel(self._config_path, old_kernel)
-            raise
-
-    def _append_log(self, line: str) -> None:
-        log_widget = self.query_one("#modal-log", Static)
-        current = str(log_widget.renderable)
-        log_widget.update(current + "\n" + line if current else line)
-
-    def _on_success(self) -> None:
-        self.query_one("#modal-status", Label).update("Done.")
-        self.query_one("#modal-close", Button).styles.display = "block"
-        # Refresh main app status panel
-        self.app.query_one(StatusPanel).refresh(layout=True)
-
-    def _on_failure(self, error: str) -> None:
-        self.query_one("#modal-status", Label).update(f"Error: {error}")
-        self.query_one("#modal-close", Button).styles.display = "block"
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "modal-close":
-            self.dismiss()
-
-
-# ── Settings Screen ───────────────────────────────────────────────────────────
-
-class SettingsScreen(Screen):
-    BINDINGS = [Binding("escape", "app.pop_screen", "Back")]
-
-    DEFAULT_CSS = """
-    SettingsScreen #kernel-row { height: 3; margin: 1 2; }
-    SettingsScreen .kernel-btn-active { background: $primary; }
-    """
-
-    def __init__(self, config_path: str, daemon, **kwargs):
-        super().__init__(**kwargs)
-        self.config_path = config_path
-        self._daemon = daemon
-        self._kernel = load_env(config_path).get("PROXY_KERNEL", "singbox")
-
-    def compose(self) -> ComposeResult:
-        yield Header(show_clock=False)
-        with Vertical():
-            yield Label("Proxy Kernel")
-            with Horizontal(id="kernel-row"):
-                sb_cls = "kernel-btn-active" if self._kernel != "xray" else ""
-                xr_cls = "kernel-btn-active" if self._kernel == "xray" else ""
-                yield Button("sing-box", id="btn-singbox", classes=sb_cls)
-                yield Button("xray", id="btn-xray", classes=xr_cls)
-        yield Footer()
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-singbox":
-            self._switch_kernel("singbox")
-        elif event.button.id == "btn-xray":
-            self._switch_kernel("xray")
-
-    def _switch_kernel(self, kernel: str) -> None:
-        current = load_env(self.config_path).get("PROXY_KERNEL", "singbox")
-        if kernel == current:
-            return
-        self.app.push_screen(KernelSwitchModal(self._daemon, kernel, self.config_path))
 
 
 # ── Main App ──────────────────────────────────────────────────────────────────
@@ -370,15 +219,13 @@ class RemnaApp(App):
     BINDINGS = [
         Binding("f2", "push_screen('nodes')", "Nodes"),
         Binding("f3", "push_screen('config')", "Config"),
-        Binding("f4", "push_screen('settings')", "Settings"),
         Binding("s", "force_sync", "Force Sync"),
         Binding("q", "quit", "Quit"),
     ]
 
-    def __init__(self, config_path: str, daemon=None, **kwargs):
+    def __init__(self, config_path: str, **kwargs):
         super().__init__(**kwargs)
         self.config_path = config_path
-        self._daemon = daemon
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -388,9 +235,6 @@ class RemnaApp(App):
     def on_mount(self) -> None:
         self.install_screen(NodesScreen(self.config_path), name="nodes")
         self.install_screen(ConfigScreen(self.config_path), name="config")
-        self.install_screen(
-            SettingsScreen(self.config_path, self._daemon), name="settings"
-        )
 
     def action_force_sync(self) -> None:
         subprocess.Popen([
@@ -401,8 +245,8 @@ class RemnaApp(App):
         self.notify("Sync triggered", severity="information")
 
 
-def main(config_path: str = "/etc/remnaproxy/config.env", daemon=None) -> None:
-    app = RemnaApp(config_path, daemon=daemon)
+def main(config_path: str = "/etc/remnaproxy/config.env") -> None:
+    app = RemnaApp(config_path)
     app.run()
 
 
