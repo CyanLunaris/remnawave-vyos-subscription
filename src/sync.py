@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-remnaproxy-sync — fetch subscription and update proxy kernel config.
+remnaproxy-sync — fetch subscription and update sing-box config.
 
 Usage:
   python3 sync.py [--config /etc/remnaproxy/config.env]
@@ -11,18 +11,14 @@ import hashlib
 import json
 import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Optional
 
+# Allow running directly as script
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.binary_manager import (
-    ensure_sing_box, ensure_rule_sets,
-    ensure_xray, ensure_tun2socks, ensure_xray_rule_sets,
-)
 from src.config_generator import ConfigSettings, generate_config
-from src.xray_config_generator import generate_xray_config
 from src.state_manager import StateManager
 from src.subscription import fetch_subscription
 
@@ -43,10 +39,9 @@ def load_env(path: str) -> dict:
     return env
 
 
-def main(config_path: str = "/etc/remnaproxy/config.env",
-         log_callback: Optional[Callable[[str], None]] = None) -> int:
+def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     env = load_env(config_path)
-    env = {**os.environ, **env}
+    env = {**os.environ, **env}  # env file takes precedence
 
     log_dir = env.get("LOG_DIR", "/var/log/remnaproxy")
     Path(log_dir).mkdir(parents=True, exist_ok=True)
@@ -59,26 +54,23 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
         ],
     )
 
-    def _emit(msg: str) -> None:
-        log.info(msg)
-        if log_callback:
-            log_callback(msg)
-
     subscription_url = env.get("SUBSCRIPTION_URL", "")
     if not subscription_url:
         log.error("SUBSCRIPTION_URL not set in %s", config_path)
         return 1
 
-    kernel = env.get("PROXY_KERNEL", "singbox")
-    nodes_file = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
-    state_file = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
+    sing_box_bin  = env.get("XRAY_BIN", "/usr/local/bin/sing-box")
+    xray_config   = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
+    nodes_file    = env.get("NODES_FILE", "/etc/remnaproxy/nodes.json")
+    state_file    = env.get("STATE_FILE", "/etc/remnaproxy/state.json")
+    rule_set_dir  = env.get("RULE_SET_DIR", "/etc/sing-box")
 
     settings = ConfigSettings(
         tun_interface=env.get("TUN_INTERFACE", "tun0"),
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
         geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
-        rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
+        rule_set_dir=rule_set_dir,
         tun_stack=env.get("TUN_STACK", "mixed"),
         tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
         multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
@@ -87,27 +79,15 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
 
     sm = StateManager(nodes_file, state_file)
 
-    # 1. Ensure binaries and geo files
-    if kernel == "xray":
-        _emit("Checking xray binaries...")
-        xray_bin = env.get("XRAY_CORE_BIN", "/usr/local/bin/xray")
-        tun2socks_bin = env.get("TUN2SOCKS_BIN", "/usr/local/bin/tun2socks")
-        xray_dir = env.get("XRAY_GEO_DIR", "/etc/xray")
-        ensure_xray(xray_bin)
-        ensure_tun2socks(tun2socks_bin)
-        ensure_xray_rule_sets(xray_dir)
-    else:
-        _emit("Checking sing-box binaries...")
-        sing_box_bin = env.get("SINGBOX_BIN", env.get("XRAY_BIN", "/usr/local/bin/sing-box"))
-        if not os.path.isfile(sing_box_bin) or not os.access(sing_box_bin, os.X_OK):
-            log.error("sing-box binary not found: %s — run install.sh", sing_box_bin)
-            return 1
-        ensure_rule_sets(settings.rule_set_dir, settings.geo_direct_ip, settings.geo_direct_site)
+    # 1. Verify binaries/geo files are present (setup is handled by install.sh)
+    if not os.path.isfile(sing_box_bin) or not os.access(sing_box_bin, os.X_OK):
+        log.error("sing-box binary not found or not executable: %s — run install.sh", sing_box_bin)
+        return 1
 
     # 2. Fetch subscription
     try:
         nodes = fetch_subscription(subscription_url)
-        _emit(f"Fetched {len(nodes)} nodes from subscription")
+        log.info("Fetched %d nodes from subscription", len(nodes))
     except ConnectionError as exc:
         log.warning("Subscription fetch failed: %s — using cached nodes", exc)
         nodes = sm.load_nodes()
@@ -119,7 +99,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
         log.error("Subscription returned 0 nodes")
         return 1
 
-    # 3. Update nodes cache
+    # 3. Update nodes cache (reset index if node count changed)
     old_nodes = sm.load_nodes()
     sm.save_nodes(nodes)
     if len(nodes) != len(old_nodes):
@@ -132,28 +112,26 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
         log.error("No current node")
         return 1
 
-    _emit(f"Generating {kernel} config for: {current_node.name} ({current_node.host}:{current_node.port})")
+    log.info("Generating config for node: %s (%s:%d)", current_node.name, current_node.host, current_node.port)
+    config = generate_config(current_node, settings)
+    config_json = json.dumps(config, indent=2)
 
-    if kernel == "xray":
-        config_obj = generate_xray_config(current_node, settings)
-        config_path_str = env.get("XRAY_CONFIG_FILE", "/etc/xray/xray-config.json")
-    else:
-        config_obj = generate_config(current_node, settings)
-        config_path_str = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
+    # 5. Compare with existing config — only restart if changed
+    config_path_obj = Path(xray_config)
+    config_path_obj.parent.mkdir(parents=True, exist_ok=True)
 
-    config_json = json.dumps(config_obj, indent=2)
-
-    # 5. Write only if changed
-    config_file = Path(config_path_str)
-    config_file.parent.mkdir(parents=True, exist_ok=True)
-    old_hash = _hash_file(config_path_str)
+    old_hash = _hash_file(xray_config)
     new_hash = hashlib.sha256(config_json.encode()).hexdigest()
+
     if old_hash == new_hash:
         log.info("Config unchanged, no restart needed")
         return 0
 
-    config_file.write_text(config_json)
-    _emit(f"Config written to {config_path_str}")
+    config_path_obj.write_text(config_json)
+    log.info("Config written to %s", xray_config)
+
+    # 6. Reload/start sing-box
+    _reload_sing_box()
     return 0
 
 
@@ -162,6 +140,14 @@ def _hash_file(path: str) -> str:
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
     except FileNotFoundError:
         return ""
+
+
+def _reload_sing_box() -> None:
+    from src.tui_helpers import reload_sing_box
+    if reload_sing_box():
+        log.info("sing-box reloaded")
+    else:
+        log.error("sing-box reload failed")
 
 
 if __name__ == "__main__":

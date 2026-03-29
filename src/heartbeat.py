@@ -19,7 +19,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.config_generator import ConfigSettings, generate_config
-from src.xray_config_generator import generate_xray_config
 from src.state_manager import StateManager
 
 log = logging.getLogger("remnaproxy-heartbeat")
@@ -76,7 +75,7 @@ def run_heartbeat_check(
 
 
 def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config.env") -> None:
-    """Regenerate config for new current node and reload proxy kernel."""
+    """Regenerate config for new current node and reload sing-box."""
     from src.sync import load_env
     env = load_env(config_path)
     env = {**os.environ, **env}
@@ -86,7 +85,6 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         log.error("No node available after rotation")
         return
 
-    kernel = env.get("PROXY_KERNEL", "singbox")
     settings = ConfigSettings(
         tun_interface=env.get("TUN_INTERFACE", "tun0"),
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
@@ -99,28 +97,22 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
     )
 
-    if kernel == "xray":
-        config = generate_xray_config(node, settings)
-        config_file = env.get("XRAY_CONFIG_FILE", "/etc/xray/xray-config.json")
-    else:
-        config = generate_config(node, settings)
-        config_file = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
-
+    config = generate_config(node, settings)
+    xray_config = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
     try:
-        Path(config_file).write_text(json.dumps(config, indent=2))
+        Path(xray_config).write_text(json.dumps(config, indent=2))
         log.info("Config updated for node: %s", node.name)
     except OSError as exc:
         log.error("Failed to write config: %s", exc)
-        return
-    _reload_proxy(kernel)
+    _reload_sing_box()
 
 
-def _reload_proxy(kernel: str) -> None:
-    from src.tui_helpers import reload_proxy
-    if reload_proxy(kernel):
-        log.info("%s reloaded", kernel)
+def _reload_sing_box() -> None:
+    from src.tui_helpers import reload_sing_box
+    if reload_sing_box():
+        log.info("sing-box reloaded")
     else:
-        log.error("%s reload failed", kernel)
+        log.error("sing-box reload failed")
 
 
 def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
