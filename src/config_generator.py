@@ -29,6 +29,7 @@ class ConfigSettings:
     multiplex_protocol: str = ""
     # Max VPN connections in the multiplex pool. Increase for more concurrent devices.
     multiplex_max_connections: int = 4
+    # When False, all traffic goes through the proxy — geo direct rules are not emitted.
     split_route: bool = True
 
 
