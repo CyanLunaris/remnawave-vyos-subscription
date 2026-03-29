@@ -125,8 +125,13 @@ class Daemon:
 
         while not self._stop.is_set() and self._restart_count < MAX_RESTARTS:
             log.info("Starting sing-box (attempt %d)", self._restart_count + 1)
-            self._sing_box_proc = subprocess.Popen([sing_box_bin, "run", "-c", config])
-            ret = self._sing_box_proc.wait()
+            try:
+                self._sing_box_proc = subprocess.Popen([sing_box_bin, "run", "-c", config])
+            except OSError as exc:
+                ret = 127  # conventional "command not found / launch failure" exit code
+                log.error("Failed to launch sing-box: %s", exc)
+            else:
+                ret = self._sing_box_proc.wait()
             if self._stop.is_set():
                 break
             self._restart_count += 1
