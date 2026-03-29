@@ -129,9 +129,14 @@ def ensure_xray_rule_sets(xray_dir: str) -> None:
         log.info("xray geosite.dat saved to %s", geosite_path)
 
 
+_BUILTIN_IP_CODES = {"private"}  # sing-box built-ins — no .srs file exists
+
+
 def ensure_rule_sets(rule_set_dir: str, ip_codes: List[str], site_codes: List[str]) -> None:
     """Ensure rule-set .srs files exist in rule_set_dir. Download if missing."""
     for code in ip_codes:
+        if code in _BUILTIN_IP_CODES:
+            continue
         path = Path(rule_set_dir) / f"geoip-{code}.srs"
         if not path.exists():
             log.info("Downloading geoip-%s.srs...", code)
