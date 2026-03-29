@@ -78,7 +78,7 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
         tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
         geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
         geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
-        rule_set_dir=rule_set_dir,
+        rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
         tun_stack=env.get("TUN_STACK", "mixed"),
         tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
         multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
@@ -99,11 +99,10 @@ def main(config_path: str = "/etc/remnaproxy/config.env",
     else:
         _emit("Checking sing-box binaries...")
         sing_box_bin = env.get("SINGBOX_BIN", env.get("XRAY_BIN", "/usr/local/bin/sing-box"))
-        rule_set_dir = env.get("RULE_SET_DIR", "/etc/sing-box")
         if not os.path.isfile(sing_box_bin) or not os.access(sing_box_bin, os.X_OK):
             log.error("sing-box binary not found: %s — run install.sh", sing_box_bin)
             return 1
-        ensure_rule_sets(rule_set_dir, settings.geo_direct_ip, settings.geo_direct_site)
+        ensure_rule_sets(settings.rule_set_dir, settings.geo_direct_ip, settings.geo_direct_site)
 
     # 2. Fetch subscription
     try:
