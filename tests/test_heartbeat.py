@@ -71,7 +71,7 @@ class TestHeartbeatLogic:
         sm.increment_fail_count()
 
         with patch("src.heartbeat.check_connectivity", return_value=True):
-            with patch("src.heartbeat._reload_sing_box"):
+            with patch("src.heartbeat._reload_proxy"):
                 switched = run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5)
 
         assert switched is False
@@ -82,7 +82,7 @@ class TestHeartbeatLogic:
         sm = make_sm_with_nodes(self.tmp, [make_node("A"), make_node("B")])
 
         with patch("src.heartbeat.check_connectivity", return_value=False):
-            with patch("src.heartbeat._reload_sing_box"):
+            with patch("src.heartbeat._reload_proxy"):
                 switched = run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5)
 
         assert switched is False
@@ -95,13 +95,13 @@ class TestHeartbeatLogic:
         sm.increment_fail_count()  # already at 1
 
         with patch("src.heartbeat.check_connectivity", return_value=False):
-            with patch("src.heartbeat._reload_sing_box") as mock_reload:
+            with patch("src.heartbeat._apply_new_node") as mock_apply:
                 switched = run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5)
 
         assert switched is True
         assert sm.get_current_index() == 1
         assert sm.get_fail_count() == 0
-        mock_reload.assert_called_once()
+        mock_apply.assert_called_once()
 
     def test_rotation_wraps_around(self):
         from src.heartbeat import run_heartbeat_check
@@ -109,7 +109,7 @@ class TestHeartbeatLogic:
         sm.increment_fail_count()  # at 1
 
         with patch("src.heartbeat.check_connectivity", return_value=False):
-            with patch("src.heartbeat._reload_sing_box"):
+            with patch("src.heartbeat._reload_proxy"):
                 run_heartbeat_check(sm, fail_threshold=2, heartbeat_host="h.com", timeout=5)
 
         assert sm.get_current_index() == 0  # wrapped
