@@ -138,6 +138,10 @@ class NodesScreen(Screen):
                 geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
                 geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
                 rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
+                tun_stack=env.get("TUN_STACK", "mixed"),
+                tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
+                multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
+                multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
                 split_route=env.get("SPLIT_ROUTE", "true").lower() != "false",
             )
             config = generate_config(node, settings)
@@ -199,7 +203,7 @@ class ConfigScreen(Screen):
         for key, _, widget_type in EDITABLE_KEYS:
             if widget_type == "select":
                 sel = self.query_one(f"#input-{key}", Select)
-                updates[key] = str(sel.value)
+                updates[key] = str(sel.value) if sel.value is not Select.BLANK else "true"
             else:
                 inp = self.query_one(f"#input-{key}", Input)
                 updates[key] = inp.value.strip()
