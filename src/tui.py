@@ -281,23 +281,20 @@ class KernelSwitchModal(ModalScreen):
         import os
         import signal as _signal
         from src.daemon import _write_proxy_kernel
-        from src.sync import load_env, main as sync_main
+        from src.sync import load_env
 
         old_kernel = load_env(self._config_path).get("PROXY_KERNEL", "singbox")
 
         log_callback(f"Writing PROXY_KERNEL={self._new_kernel} to config...")
         _write_proxy_kernel(self._config_path, self._new_kernel)
 
-        log_callback("Running sync for new kernel (may download binaries)...")
+        log_callback("Restarting daemon — it will run sync on startup...")
         try:
-            sync_main(self._config_path, log_callback=log_callback)
+            os.kill(1, _signal.SIGTERM)
         except Exception:
-            log_callback(f"Sync failed — reverting PROXY_KERNEL to {old_kernel}")
+            log_callback(f"Restart failed — reverting PROXY_KERNEL to {old_kernel}")
             _write_proxy_kernel(self._config_path, old_kernel)
             raise
-
-        log_callback("Restarting daemon — container will restart with new kernel...")
-        os.kill(1, _signal.SIGTERM)
 
     def _append_log(self, line: str) -> None:
         log_widget = self.query_one("#modal-log", Static)
