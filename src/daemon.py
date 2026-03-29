@@ -104,12 +104,13 @@ class Daemon:
         """Create and bring up the TUN interface."""
         tun_if = self.env.get("TUN_INTERFACE", "tun0")
         tun_addr = self.env.get("TUN_ADDRESS", "172.19.0.1/30")
+        tun_tx_queue = self.env.get("TUN_TX_QUEUE", "1000")
         cmds = [
             ["/sbin/ip", "tuntap", "add", "mode", "tun", tun_if],
             ["/sbin/ip", "addr", "add", tun_addr, "dev", tun_if],
             ["/sbin/ip", "link", "set", tun_if, "up"],
             # Larger TX queue reduces packet drops under bursty multi-device load.
-            ["/sbin/ip", "link", "set", tun_if, "txqueuelen", "1000"],
+            ["/sbin/ip", "link", "set", tun_if, "txqueuelen", tun_tx_queue],
         ]
         for cmd in cmds:
             result = subprocess.run(cmd, capture_output=True)

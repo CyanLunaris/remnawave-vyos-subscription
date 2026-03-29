@@ -57,6 +57,11 @@ class TestConfigStructure:
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["mtu"] == 1400
 
+    def test_tun_mtu_is_configurable(self):
+        cfg = generate_config(make_vless_reality(), ConfigSettings(tun_mtu=1300))
+        tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
+        assert tun["mtu"] == 1300
+
     def test_tun_default_stack_is_mixed(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
@@ -78,7 +83,7 @@ class TestConfigStructure:
         cfg = generate_config(make_vless_reality(), s)
         tun = next(i for i in cfg["inbounds"] if i["type"] == "tun")
         assert tun["gso"] is True
-        assert tun["gso_max_size"] == 65536
+        assert "gso_max_size" not in tun
 
     def test_has_direct_outbound(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -152,7 +157,11 @@ class TestRouting:
 
     def test_sniff_rule_has_timeout(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
-        assert cfg["route"]["rules"][0]["timeout"] == "300ms"
+        assert cfg["route"]["rules"][0]["timeout"] == "100ms"
+
+    def test_sniff_timeout_is_configurable(self):
+        cfg = generate_config(make_vless_reality(), ConfigSettings(route_sniff_timeout="50ms"))
+        assert cfg["route"]["rules"][0]["timeout"] == "50ms"
 
     def test_dns_rule_uses_hijack_action(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
@@ -211,10 +220,10 @@ class TestRouting:
 
 
 class TestDns:
-    def test_remote_server_uses_type_field(self):
+    def test_remote_server_uses_udp_by_default(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)
         remote = next(s for s in cfg["dns"]["servers"] if s["tag"] == "remote")
-        assert remote["type"] == "https"
+        assert remote["type"] == "udp"
         assert "address" not in remote
 
     def test_remote_server_field(self):
@@ -222,6 +231,14 @@ class TestDns:
         cfg = generate_config(make_vless_reality(), s)
         remote = next(srv for srv in cfg["dns"]["servers"] if srv["tag"] == "remote")
         assert remote["server"] == "8.8.8.8"
+
+    def test_doh_url_maps_to_https_server(self):
+        s = ConfigSettings(dns_server="https://dns.google/dns-query")
+        cfg = generate_config(make_vless_reality(), s)
+        remote = next(srv for srv in cfg["dns"]["servers"] if srv["tag"] == "remote")
+        assert remote["type"] == "https"
+        assert remote["server"] == "dns.google"
+        assert remote["path"] == "/dns-query"
 
     def test_local_server_uses_local_type(self):
         cfg = generate_config(make_vless_reality(), DEFAULT_SETTINGS)

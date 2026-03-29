@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 try:
     from textual.app import App, ComposeResult
     from textual.binding import Binding
-    from textual.containers import Container, Horizontal, Vertical
+    from textual.containers import Container, Horizontal, Vertical, VerticalScroll
     from textual.screen import Screen
     from textual.widgets import (
         Button, DataTable, Footer, Header, Input, Label,
@@ -34,8 +34,9 @@ from src.tui_helpers import (
     get_last_log_line, reload_sing_box,
 )
 from src.state_manager import StateManager
-from src.config_generator import ConfigSettings, generate_config
+from src.config_generator import generate_config
 from src.sync import load_env
+from src.sync import build_config_settings
 import json
 
 
@@ -132,13 +133,7 @@ class NodesScreen(Screen):
         node = self._sm.get_current_node()
         if node:
             env = load_env(self.config_path)
-            settings = ConfigSettings(
-                tun_interface=env.get("TUN_INTERFACE", "tun0"),
-                tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
-                geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
-                geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
-                rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
-            )
+            settings = build_config_settings(env)
             config = generate_config(node, settings)
             Path(self._xray_config).parent.mkdir(parents=True, exist_ok=True)
             Path(self._xray_config).write_text(json.dumps(config, indent=2))
@@ -154,9 +149,28 @@ EDITABLE_KEYS = [
     ("SUBSCRIPTION_URL", "Subscription URL (sub-link)"),
     ("SYNC_INTERVAL", "Sync interval (e.g. 10min)"),
     ("HEARTBEAT_INTERVAL", "Heartbeat interval (e.g. 30s)"),
+    ("HEARTBEAT_TIMEOUT", "Heartbeat timeout (seconds)"),
+    ("HEARTBEAT_COOLDOWN", "Heartbeat cooldown checks"),
+    ("HEARTBEAT_HOST", "Heartbeat host"),
     ("HEARTBEAT_FAIL_THRESHOLD", "Fail threshold (number)"),
     ("GEO_DIRECT_IP", "Direct GeoIP (e.g. private,ru)"),
     ("GEO_DIRECT_SITE", "Direct GeoSite (e.g. ru)"),
+    ("TUN_INTERFACE", "TUN interface"),
+    ("TUN_ADDRESS", "TUN address CIDR"),
+    ("TUN_STACK", "TUN stack: mixed/system/gvisor"),
+    ("TUN_GSO", "Enable GSO: true/false"),
+    ("TUN_MTU", "TUN MTU (e.g. 1400)"),
+    ("TUN_TX_QUEUE", "TUN txqueuelen (e.g. 1000)"),
+    ("DNS_SERVER", "DNS server (IP/host or https://... DoH URL)"),
+    ("ROUTE_SNIFF_TIMEOUT", "Sniff timeout (e.g. 100ms)"),
+    ("MULTIPLEX_PROTOCOL", "Multiplex protocol: smux/yamux/h2mux"),
+    ("MULTIPLEX_MAX_CONNECTIONS", "Multiplex max connections"),
+    ("RULE_SET_DIR", "Rule-set directory"),
+    ("XRAY_BIN", "sing-box binary path"),
+    ("XRAY_CONFIG", "sing-box config path"),
+    ("NODES_FILE", "Nodes file path"),
+    ("STATE_FILE", "State file path"),
+    ("LOG_DIR", "Log directory"),
 ]
 
 
@@ -173,7 +187,7 @@ class ConfigScreen(Screen):
     def compose(self) -> ComposeResult:
         cfg = read_config(self.config_path)
         yield Header(show_clock=False)
-        with Vertical():
+        with VerticalScroll(id="config-scroll"):
             for key, label in EDITABLE_KEYS:
                 yield Label(label)
                 yield Input(value=cfg.get(key, ""), id=f"input-{key}")
@@ -214,6 +228,7 @@ class RemnaApp(App):
     StatusPanel { height: auto; padding: 1 2; }
     DataTable   { height: 1fr; }
     Button      { margin: 0 1; }
+    #config-scroll { height: 1fr; padding: 0 1; }
     """
 
     BINDINGS = [
