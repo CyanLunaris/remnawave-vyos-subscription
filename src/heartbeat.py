@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.config_generator import ConfigSettings, generate_config
+from src.config_generator import generate_config
 from src.state_manager import StateManager
 
 log = logging.getLogger("remnaproxy-heartbeat")
@@ -85,17 +85,8 @@ def _apply_new_node(sm: StateManager, config_path: str = "/etc/remnaproxy/config
         log.error("No node available after rotation")
         return
 
-    settings = ConfigSettings(
-        tun_interface=env.get("TUN_INTERFACE", "tun0"),
-        tun_address=env.get("TUN_ADDRESS", "172.19.0.1/30"),
-        geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
-        geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
-        rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
-        tun_stack=env.get("TUN_STACK", "mixed"),
-        tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
-        multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
-        multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
-    )
+    from src.sync import build_config_settings
+    settings = build_config_settings(env)
 
     config = generate_config(node, settings)
     xray_config = env.get("XRAY_CONFIG", "/etc/sing-box/config.json")
