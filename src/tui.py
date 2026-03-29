@@ -138,6 +138,7 @@ class NodesScreen(Screen):
                 geo_direct_ip=env.get("GEO_DIRECT_IP", "private,ru").split(","),
                 geo_direct_site=env.get("GEO_DIRECT_SITE", "category-ru").split(","),
                 rule_set_dir=env.get("RULE_SET_DIR", "/etc/sing-box"),
+                split_route=env.get("SPLIT_ROUTING", "true").lower() not in ("0", "false", "no"),
             )
             config = generate_config(node, settings)
             Path(self._xray_config).parent.mkdir(parents=True, exist_ok=True)
@@ -155,6 +156,7 @@ EDITABLE_KEYS = [
     ("SYNC_INTERVAL", "Sync interval (e.g. 10min)"),
     ("HEARTBEAT_INTERVAL", "Heartbeat interval (e.g. 30s)"),
     ("HEARTBEAT_FAIL_THRESHOLD", "Fail threshold (number)"),
+    ("SPLIT_ROUTING", "Split routing, true=geo-direct / false=all via proxy"),
     ("GEO_DIRECT_IP", "Direct GeoIP (e.g. private,ru)"),
     ("GEO_DIRECT_SITE", "Direct GeoSite (e.g. ru)"),
 ]
