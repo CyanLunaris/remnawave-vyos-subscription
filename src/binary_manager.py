@@ -15,7 +15,7 @@ import tarfile
 import tempfile
 import urllib.request
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,13 @@ def ensure_sing_box(install_path: str) -> str:
     return install_path
 
 
-def ensure_rule_sets(rule_set_dir: str, ip_codes: List[str], site_codes: List[str]) -> None:
+def ensure_rule_sets(
+    rule_set_dir: str,
+    ip_codes: List[str],
+    site_codes: List[str],
+    custom_ip_rule_sets: List[Tuple[str, str]] | None = None,
+    custom_site_rule_sets: List[Tuple[str, str]] | None = None,
+) -> None:
     """Ensure rule-set .srs files exist in rule_set_dir. Download if missing."""
     for code in ip_codes:
         path = Path(rule_set_dir) / f"geoip-{code}.srs"
@@ -56,6 +62,20 @@ def ensure_rule_sets(rule_set_dir: str, ip_codes: List[str], site_codes: List[st
             url = f"{GEOSITE_RULE_SET_BASE}/geosite-{code}.srs"
             _download_file(url, str(path))
             log.info("geosite-%s.srs saved to %s", code, path)
+
+    for tag, url in (custom_ip_rule_sets or []):
+        path = Path(rule_set_dir) / f"{tag}.srs"
+        if not path.exists():
+            log.info("Downloading custom rule set %s.srs from %s...", tag, url)
+            _download_file(url, str(path))
+            log.info("%s.srs saved to %s", tag, path)
+
+    for tag, url in (custom_site_rule_sets or []):
+        path = Path(rule_set_dir) / f"{tag}.srs"
+        if not path.exists():
+            log.info("Downloading custom rule set %s.srs from %s...", tag, url)
+            _download_file(url, str(path))
+            log.info("%s.srs saved to %s", tag, path)
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────

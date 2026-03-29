@@ -40,6 +40,23 @@ def load_env(path: str) -> dict:
     return env
 
 
+def _parse_rule_set_urls(raw: str) -> list:
+    """Parse 'tag1:https://url1,tag2:https://url2' into [(tag1, url1), (tag2, url2)].
+
+    The tag is everything before the first colon; the URL is everything after it
+    (which naturally preserves 'https://...').
+    """
+    result = []
+    for item in raw.split(","):
+        item = item.strip()
+        tag, sep, url = item.partition(":")
+        tag = tag.strip()
+        url = url.strip()
+        if sep and tag and url:
+            result.append((tag, url))
+    return result
+
+
 def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
     env = load_env(config_path)
     env = {**os.environ, **env}  # env file takes precedence
@@ -71,6 +88,8 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         tun_gso=env.get("TUN_GSO", "").lower() in ("1", "true", "yes"),
         multiplex_protocol=env.get("MULTIPLEX_PROTOCOL", ""),
         multiplex_max_connections=int(env.get("MULTIPLEX_MAX_CONNECTIONS", "4")),
+        custom_direct_ip_rule_sets=_parse_rule_set_urls(env.get("RULE_SET_DIRECT_IP_URLS", "")),
+        custom_direct_site_rule_sets=_parse_rule_set_urls(env.get("RULE_SET_DIRECT_SITE_URLS", "")),
     )
 
     # 1. Ensure binaries/geo files are present, downloading if missing.
@@ -84,7 +103,13 @@ def main(config_path: str = "/etc/remnaproxy/config.env") -> int:
         return 1
 
     try:
-        ensure_rule_sets(rule_set_dir, settings.geo_direct_ip, settings.geo_direct_site)
+        ensure_rule_sets(
+            rule_set_dir,
+            settings.geo_direct_ip,
+            settings.geo_direct_site,
+            settings.custom_direct_ip_rule_sets,
+            settings.custom_direct_site_rule_sets,
+        )
     except Exception as exc:
         # Rule set download failures are non-fatal: files may already exist on a
         # volume-mounted directory from a previous run.  sing-box will fail at
